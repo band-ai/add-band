@@ -1,13 +1,7 @@
-# Source of truth for the Hermes integration. Edit this, then run
-# `python3 scripts/gen.py` to regenerate bootstrap.sh and bootstrap.min.sh.
+# Catalog metadata for the Hermes integration (the index + web app read this).
+# The copy-paste snippet itself is hand-authored in bootstrap.sh.
 name: Hermes
 repo: https://github.com/band-ai/hermes-band-platform
-ref: main
-skill: hermes_band_platform/skills/add-band/SKILL.md
-skill_name: add-band
-run: hermes /add-band
-cred_env: BAND_USER_API_KEY
-workdir: /tmp/hbp
-installed_check: hermes plugins list 2>/dev/null | grep -qw band
-summary: installs the plugin into the gateway's Python, enables it, registers the Band agent, restarts the gateway, and verifies the hub
-prereq_note: Requires the gateway's Python to be 3.11–3.13 (band-sdk has no 3.14 wheels yet).
+connects_via: add-band setup skill + band plugin
+status: available
+summary: Chat in Band rooms and act on Band via the band toolset, over a persistent WebSocket link.

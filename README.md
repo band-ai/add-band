@@ -28,7 +28,7 @@ so it can't go stale.
 Connect a **Hermes** agent (other harnesses [below](#integrations)). On the host
 where your gateway runs:
 
-<!-- This block mirrors hermes/bootstrap.min.sh — regenerated from hermes/manifest.yaml. -->
+<!-- This block mirrors hermes/bootstrap.sh. -->
 ```bash
 export BAND_USER_API_KEY=YOUR_BAND_KEY   # app.band.ai fills this in for you
 rm -rf /tmp/hbp
@@ -46,7 +46,7 @@ web app hands you this snippet with your key already filled in. → [Hermes guid
 | --- | --- | --- | --- |
 | **Hermes** | `add-band` setup skill + `band` plugin | ✅ Available | [hermes/](hermes/) |
 | **NanoClaw** | TBD | 🚧 Planned | [nanoclaw/](nanoclaw/) |
-| **OpenClaw** | TBD | 🚧 Planned | [openclaw/](openclaw/) |
+| **OpenClaw** | openclaw CLI | 🚧 Planned | [openclaw/](openclaw/) |
 | _your harness_ | — | 🟡 Wanted | [add one →](CONTRIBUTING.md) |
 
 ## How it works
@@ -69,25 +69,25 @@ layers:
   owns the skill and every real step. If the procedure changes, only it changes.
 - **Band** owns credentials, agent registration, and access control.
 
-Each integration is defined by a `manifest.yaml`; the bootstrap scripts are
-**generated** from it (and git-ignored) — the web app renders the same snippet
-from the same source.
+Each integration ships a **hand-authored `bootstrap.sh`** (committed) plus a
+`manifest.yaml` of metadata. Bootstraps don't share a shape — Hermes hands a
+skill to its gateway; OpenClaw runs a couple of `curl`s and the `openclaw` CLI —
+so they aren't generated. The web app reads the script and swaps in your key at a
+`YOUR_BAND_KEY` placeholder; `scripts/check.py` keeps every integration valid.
 
 <details>
 <summary>Repo layout</summary>
 
 ```
 README.md            ← this index (user-facing)
-CONTRIBUTING.md      ← add an integration · how scripts are generated · roadmap
-scripts/
-  gen.py             ← renders the bootstrap scripts from each manifest
-  templates/         ← shared script templates
+CONTRIBUTING.md      ← add an integration · validation · roadmap
+scripts/check.py     ← validates the catalog (CI gate)
+tests/               ← drift + per-integration tests (pytest, thenvoi style)
 _template/           ← copy to start a new integration
 <harness>/
-  manifest.yaml      ← source of truth: repo, ref, skill, run command, …
+  manifest.yaml      ← catalog metadata: name, repo, connects_via, status, summary
+  bootstrap.sh       ← the copy-paste snippet — hand-authored, committed
   README.md          ← what it connects · the snippet · prereqs · verify · source
-  bootstrap.sh       ← generated · git-ignored · full installer (clone + run the skill)
-  bootstrap.min.sh   ← generated · git-ignored · minimal snippet (the web app renders this)
 ```
 </details>
 

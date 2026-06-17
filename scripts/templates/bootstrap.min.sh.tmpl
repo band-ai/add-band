@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-# Connect this machine's @@NAME@@ agent to Band. Run on the gateway host.
-set -e
-export @@CRED_ENV@@=YOUR_BAND_KEY   # the web app fills this in
-rm -rf @@WORKDIR@@
-git clone --depth 1 --branch @@REF@@ @@REPO@@ @@WORKDIR@@
-@@RUN@@ 2>/dev/null || cat @@WORKDIR@@/@@SKILL@@

@@ -1,0 +1,8 @@
+# Catalog metadata for the OpenClaw integration.
+# NOTE: stub — the bootstrap.sh commands are placeholders until OpenClaw's real
+# connect steps are known. Repo URL is a guess; update when confirmed.
+name: OpenClaw
+repo: https://github.com/band-ai/openclaw
+connects_via: openclaw CLI
+status: planned
+summary: Connect an OpenClaw agent to Band through the openclaw CLI — no skill, just a couple of curls.

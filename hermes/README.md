@@ -14,25 +14,19 @@ access control — only messages Band delivers reach the agent.
 
 ## Bootstrap
 
-Run on the host where your Hermes gateway runs. First set credentials (pick one):
+Run on the host where your Hermes gateway runs. The Band web app hands you this
+snippet ([`bootstrap.sh`](bootstrap.sh)) with your key already filled in:
 
 ```bash
-# Auto-register a Band agent from a short-lived user key (removed after registration):
-export BAND_USER_API_KEY=...
-
-# — or bring a pre-created agent from app.band.ai/agents/new —
-export BAND_AGENT_ID=...
-export BAND_API_KEY=...
+export BAND_USER_API_KEY=YOUR_BAND_KEY   # the web app fills this in
+rm -rf /tmp/hbp
+git clone --depth 1 --branch main https://github.com/band-ai/hermes-band-platform /tmp/hbp
+hermes /add-band 2>/dev/null || cat /tmp/hbp/hermes_band_platform/skills/add-band/SKILL.md
 ```
 
-Then run the bootstrap. The Band web app renders this snippet (from
-[`manifest.yaml`](manifest.yaml)) with your key already filled in. From a clone of
-this repo you can generate and run it yourself:
-
-```bash
-python3 scripts/gen.py      # writes hermes/bootstrap.sh (+ .min.sh)
-bash hermes/bootstrap.sh
-```
+> Credentials: set `BAND_USER_API_KEY` to have the skill register an agent for
+> you, or create one at `app.band.ai/agents/new` and use `BAND_AGENT_ID` +
+> `BAND_API_KEY` instead. See [Prereqs](#prereqs).
 
 It pulls the official `add-band` setup skill from the plugin repo and hands it to
 Hermes, which installs the plugin into the gateway's Python, enables it,
@@ -83,10 +77,3 @@ grep BAND_HUB_ROOM ~/.hermes/.env   # a non-empty UUID = hub created
 Then open the auto-created **"Hermes Agent Hub"** room in Band and **@mention the
 agent** — Band has no DMs, so an un-mentioned message is ignored by design. A
 reply means you're live.
-
-## Maintaining
-
-`bootstrap.sh` and `bootstrap.min.sh` are **generated** from
-[`manifest.yaml`](manifest.yaml) and **git-ignored** — change a fact (repo, ref,
-skill path, run command) in the manifest, then run `python3 scripts/gen.py`. The
-full generation flow is in [CONTRIBUTING.md](../CONTRIBUTING.md#how-generation-works).

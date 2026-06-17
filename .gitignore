@@ -1,5 +1,4 @@
-# Bootstrap scripts are generated from each <harness>/manifest.yaml by
-# scripts/gen.py — build artifacts, not source. The Band web app renders the
-# same snippet from the manifest; regenerate locally with `python3 scripts/gen.py`.
-/*/bootstrap.sh
-/*/bootstrap.min.sh
+# Python / pytest artifacts
+__pycache__/
+*.pyc
+.pytest_cache/

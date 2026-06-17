@@ -6,36 +6,22 @@ on:
   pull_request:
 
 jobs:
-  bootstrap-scripts:
-    name: Generator produces valid scripts
+  catalog:
+    name: Validate integration catalog
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # Generated scripts are git-ignored build artifacts — fail if any got committed.
-      - name: Generated scripts must not be committed
-        run: |
-          tracked=$(git ls-files '*/bootstrap.sh' '*/bootstrap.min.sh')
-          if [ -n "$tracked" ]; then
-            echo "These generated files are committed but should be git-ignored:" >&2
-            echo "$tracked" >&2
-            exit 1
-          fi
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # Render every integration's scripts from its manifest. Also surfaces a
-      # manifest missing a required field (the generator would raise).
-      - name: Generate scripts
-        run: python3 scripts/gen.py
+      - run: pip install pytest
 
-      # Catch shell syntax errors introduced via a template change.
-      - name: Syntax-check generated scripts
-        run: |
-          shopt -s nullglob
-          for f in */bootstrap.sh */bootstrap.min.sh; do
-            echo "bash -n $f"
-            bash -n "$f"
-          done
+      # Structural validation + completeness (every folder participates or is a stub).
+      - name: Validate catalog
+        run: python3 scripts/check.py
+
+      # Drift tests + per-integration manifest/bootstrap (+ bash -n) checks.
+      - name: Tests
+        run: pytest tests/ -q
