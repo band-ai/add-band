@@ -1,0 +1,15 @@
+# Source of truth for this integration. Fill it in, then run
+# `python3 scripts/gen.py` to generate bootstrap.sh and bootstrap.min.sh.
+# (Flat key: value only — no nested YAML. Everything after the first `: ` is
+# kept verbatim, so URLs and piped commands are fine.)
+name: <Harness>                       # display name, e.g. Hermes
+repo: https://github.com/<org>/<repo> # upstream repo that owns the real artifact
+ref: main                             # branch/tag/commit to clone (pin for reproducibility)
+skill: path/to/SKILL.md               # artifact path inside the repo
+skill_name: <skill>                   # short name used in prose, e.g. add-band
+run: <bin> /<skill>                   # command that runs the skill once installed
+cred_env: BAND_USER_API_KEY           # env var the snippet exports for the user's key
+workdir: /tmp/<slug>                  # scratch clone dir for the minimal snippet
+installed_check: <cmd that exits 0 if already installed>   # e.g. <bin> plugins list | grep -qw band
+summary: <what the skill does, one line>                   # used in the full script's header
+prereq_note: <runtime/version requirement, one line>       # printed on a fresh box
