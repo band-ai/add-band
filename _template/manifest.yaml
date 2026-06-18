@@ -1,0 +1,7 @@
+# Catalog metadata for this integration (the index + web app read this).
+# Flat key: value only. The copy-paste snippet itself lives in bootstrap.sh.
+name: <Harness>                        # display name, e.g. Hermes
+repo: https://github.com/<org>/<repo>  # upstream repo that owns the real artifact
+connects_via: <skill | CLI | MCP | …>  # short phrase for the index "Connects via" column
+status: planned                        # planned | available
+summary: <one line — what the agent gains by connecting>

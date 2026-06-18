@@ -1,0 +1,7 @@
+# Catalog metadata for the Hermes integration (the index + web app read this).
+# The copy-paste snippet itself is hand-authored in bootstrap.sh.
+name: Hermes
+repo: https://github.com/band-ai/hermes-band-platform
+connects_via: add-band setup skill + band plugin
+status: available
+summary: Chat in Band rooms and act on Band via the band toolset, over a persistent WebSocket link.

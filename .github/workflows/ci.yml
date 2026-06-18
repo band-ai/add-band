@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  catalog:
+    name: Validate integration catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pytest
+
+      # Structural validation + completeness (every folder participates or is a stub).
+      - name: Validate catalog
+        run: python3 scripts/check.py
+
+      # Drift tests + per-integration manifest/bootstrap (+ bash -n) checks.
+      - name: Tests
+        run: pytest tests/ -q
