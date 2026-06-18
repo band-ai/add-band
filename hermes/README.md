@@ -14,18 +14,43 @@ access control — only messages Band delivers reach the agent.
 
 ## Bootstrap
 
-Run on the host where your Hermes gateway runs. The Band web app hands you the
-snippet with your key already filled in — the script is [`bootstrap.sh`](bootstrap.sh).
+Run on the host where your Hermes gateway runs. The Band web app hands you this
+snippet ([`bootstrap.sh`](bootstrap.sh)) with your key already filled in:
 
-> Credentials: set `BAND_USER_API_KEY` to have the skill register an agent for
-> you, or create one at `app.band.ai/agents/new` and use `BAND_AGENT_ID` +
-> `BAND_API_KEY` instead. See [Prereqs](#prereqs).
+```bash
+export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # the web app fills this in
+rm -rf /tmp/hbp && git clone --depth 1 --branch main https://github.com/band-ai/hermes-band-platform /tmp/hbp
+SKILL=/tmp/hbp/hermes_band_platform/skills/add-band
+HERMES_PY="$(hermes --version 2>&1 | sed -n 's/^Project: //p')/venv/bin/python"
+# Mint the Band agent here, in a plain shell — your user key never reaches the agent.
+"$HERMES_PY" "$SKILL/scripts/register_agent.py"
+unset BAND_USER_API_KEY
+# Plant the skill so `hermes chat -s add-band` is invocable before the plugin is installed.
+DEST="${HERMES_HOME:-$HOME/.hermes}/skills/add-band"
+rm -rf "$DEST" && mkdir -p "$(dirname "$DEST")" && cp -r "$SKILL" "$DEST"
+# Hand off: the agent runs the skill to install, enable, restart, and verify.
+hermes chat -s add-band
+```
 
-It pulls the official `add-band` setup skill from the plugin repo and hands it to
-Hermes, which installs the plugin into the gateway's Python, enables it,
-registers the Band agent, restarts the gateway, and verifies the hub. The skill
-is the source of truth for every step — this snippet stays thin and never goes
-stale.
+The snippet does only what the bootstrapper is uniquely placed to do, then hands
+off:
+
+1. **Clone** the integration repo.
+2. **Register** a Band agent from your *user* key — consumed here, in a plain
+   shell, so the broad key never enters the agent's own environment. Only the
+   agent-scoped `BAND_AGENT_ID` + `BAND_API_KEY` are written to Hermes, then the
+   user key is dropped.
+3. **Plant** the `add-band` skill into `$HERMES_HOME/skills` so `hermes chat -s add-band`
+   is invocable on a fresh box (a plugin-shipped skill isn't, until installed).
+4. **Hand off** to `hermes chat -s add-band`. From there the *skill* installs the plugin,
+   enables it, restarts the gateway, and verifies the hub — it is the single
+   source of truth for those steps, so this snippet never reimplements them and
+   never goes stale. Credentials are already saved, so the skill skips its
+   credential gate straight to the live @mention test.
+
+> **Pre-created agent instead?** Make one at `app.band.ai/agents/new`, save
+> `BAND_AGENT_ID` + `BAND_API_KEY` with Hermes's env writer, and drop the
+> `register_agent.py` + `unset` lines. See [Prereqs](#prereqs).
 
 ## Source
 
