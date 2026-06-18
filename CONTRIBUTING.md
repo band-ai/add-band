@@ -83,6 +83,14 @@ Every integration README answers the same five things, in order:
 
 - **This repo owns the on-ramp, not the integration.** Don't vendor the skill or
   plugin here — point at its repo. Install logic lives upstream.
+- **Shared helper scripts have one source of truth.** `scripts/register-agent.sh`
+  is the canonical shell helper for minting agent-scoped Band credentials from a
+  user key. Integration repos that need an offline copy should vendor it under
+  their own add-band skill (for example
+  `.claude/skills/add-band/scripts/register-agent.sh`) and keep it synced with
+  `python3 scripts/check-register-agent-sync.py --sync`. Run the checker without
+  `--sync` to compare any sibling copies that are checked out locally; run it
+  with `--strict` in multi-repo CI when all integration repos are present.
 - **Pin refs in the snippet.** Clone a tag/commit, not a moving branch, so a
   copied snippet keeps working.
 - **Fail loud.** Prefer `set -e` and an early check for the harness binary.

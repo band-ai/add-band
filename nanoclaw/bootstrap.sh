@@ -12,11 +12,12 @@ set -e
 # >>> band:mini
 export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # the web app fills this in
 export NANOCLAW_HOME="${NANOCLAW_HOME:-$HOME/nanoclaw-band}"
-if [ -d "$NANOCLAW_HOME/.git" ]; then git -C "$NANOCLAW_HOME" pull --ff-only; else git clone --depth 1 --branch main https://github.com/band-ai/nanoclaw-band "$NANOCLAW_HOME"; fi
+export NANOCLAW_REPO="${NANOCLAW_REPO:-https://github.com/band-ai/nanoclaw-band}"
+if [ -d "$NANOCLAW_HOME/.git" ]; then if git -C "$NANOCLAW_HOME" remote get-url upstream >/dev/null 2>&1; then git -C "$NANOCLAW_HOME" remote set-url upstream "$NANOCLAW_REPO"; else git -C "$NANOCLAW_HOME" remote add upstream "$NANOCLAW_REPO"; fi; git -C "$NANOCLAW_HOME" pull --ff-only upstream main; else git clone --depth 1 --branch main "$NANOCLAW_REPO" "$NANOCLAW_HOME"; fi
 cd "$NANOCLAW_HOME"
 export BAND_AGENT_NAME="${BAND_AGENT_NAME:-MyNanoClawAgent}"
 export BAND_AGENT_DESCRIPTION="${BAND_AGENT_DESCRIPTION:-NanoClaw agent on Band}"
-eval "$(bash scripts/register-agent.sh)"
+eval "$(bash .claude/skills/add-band/scripts/register-agent.sh)"
 unset BAND_USER_API_KEY
 export BAND_AGENT_ID BAND_API_KEY
 { echo "BAND_AGENT_ID=$BAND_AGENT_ID"; echo "BAND_API_KEY=$BAND_API_KEY"; } >> .env

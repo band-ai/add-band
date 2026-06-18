@@ -1,6 +1,6 @@
 # Catalog metadata for the OpenClaw integration.
 name: OpenClaw
-repo: https://github.com/band-ai/openclaw
-connects_via: openclaw CLI
+repo: https://github.com/band-ai/openclaw-band
+connects_via: openclaw-band helper + openclaw CLI
 status: available
-summary: Connect an OpenClaw agent to Band — register an agent, then the openclaw CLI installs the band channel plugin and wires it in.
+summary: Connect an OpenClaw agent to Band — fetch openclaw-band's shared helper, register an agent, then the openclaw CLI installs and wires the band channel plugin.

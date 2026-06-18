@@ -25,20 +25,13 @@ so it can't go stale.
 
 ## Quickstart
 
-Connect a **Hermes** agent (other harnesses [below](#integrations)). On the host
-where your gateway runs:
+Connect a **Hermes** agent (other harnesses [below](#integrations)). Get your snippet
+from the Band web app — it fills in your key — and paste it on the host where your
+gateway runs. The exact script is [`hermes/bootstrap.sh`](hermes/bootstrap.sh).
 
-<!-- This block mirrors hermes/bootstrap.sh. -->
-```bash
-export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # app.band.ai fills this in for you
-rm -rf /tmp/hbp
-git clone --depth 1 --branch main https://github.com/band-ai/hermes-band-platform /tmp/hbp
-hermes /add-band 2>/dev/null || cat /tmp/hbp/hermes_band_platform/skills/add-band/SKILL.md
-```
-
-**One paste → two confirmations → a connected agent.** You provide credentials when
-asked, then @mention the agent in a Band room — a reply means you're live. The Band
-web app hands you this snippet with your key already filled in. → [Hermes guide](hermes/)
+**One paste → one @mention → a connected agent.** The snippet registers your agent and
+hands off to the `add-band` skill, which installs and verifies everything; then you
+@mention the agent in a Band room and a reply means you're live. → [Hermes guide](hermes/)
 
 ## Integrations
 
