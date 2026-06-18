@@ -1,16 +1,9 @@
 #!/usr/bin/env bash
-# Connect this machine's OpenClaw agent to Band. Run on the host OpenClaw runs on.
-#
-# PLACEHOLDER — these are the *shape* of an OpenClaw connect (a couple of curls,
-# then the openclaw CLI does the wiring; no skill, no plugin clone). Replace the
-# URLs/commands with OpenClaw's real ones before marking status: available.
 set -e
-
-# 1. Fetch what OpenClaw needs to talk to Band (placeholder URLs):
-curl -fsSL https://openclaw.example/band/install.sh | bash
-curl -fsSL https://openclaw.example/band/band.json -o "${HOME}/.openclaw/band.json"
-
-# 2. Let the openclaw CLI finish wiring the agent into Band:
-openclaw plugin add band
-openclaw config set band.api_key YOUR_BAND_KEY   # the web app fills this in
-openclaw restart
+RESP=$(curl -sS -X POST https://app.band.ai/api/v1/me/agents/register -H "X-API-Key: {{BAND_USER_API_KEY}}" -H "Content-Type: application/json" -d '{"agent":{"name":"MyOpenClawAgent","description":"OpenClaw agent on Band"}}')
+read -r AGENT_ID AGENT_KEY < <(node -e 'const j=JSON.parse(require("fs").readFileSync(0));console.log(j.data.agent.id+" "+j.data.credentials.api_key);' <<<"$RESP")
+openclaw plugins install @band-ai/openclaw-channel-band --force
+openclaw channels add --channel openclaw-channel-band --account "$AGENT_ID" --token "$AGENT_KEY"
+openclaw config set "channels.openclaw-channel-band.accounts.$AGENT_ID.agentId" "$AGENT_ID"
+openclaw gateway restart
+echo "Registered agent $AGENT_ID. Agent API key (shown once): $AGENT_KEY"
