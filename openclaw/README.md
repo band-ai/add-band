@@ -4,11 +4,10 @@
 
 ## What it connects
 
-Connects an OpenClaw agent to Band through the **`openclaw` CLI** — no skill and
-no plugin clone. The snippet registers a Band agent with your user key, then the
-CLI installs the `openclaw-channel-band` plugin and wires that agent in as a
-channel account. (This is a deliberately different shape from Hermes, which hands
-a setup *skill* to its gateway.)
+Connects an OpenClaw agent to Band through the **`openclaw` CLI**. The snippet
+fetches the `openclaw-band` integration repo for the shared registration helper,
+registers a Band agent with your user key, then the CLI installs the
+`openclaw-channel-band` plugin and wires that agent in as a channel account.
 
 ## Bootstrap
 
@@ -17,8 +16,10 @@ your key already filled in — the script is [`bootstrap.sh`](bootstrap.sh).
 
 ## Source
 
-The channel ships as the `@band-ai/openclaw-channel-band` plugin, installed by the
-`openclaw` CLI; [`bootstrap.sh`](bootstrap.sh) is the on-ramp this catalog owns.
+The channel ships from [`band-ai/openclaw-band`](https://github.com/band-ai/openclaw-band)
+as the `@band-ai/openclaw-channel-band` plugin. The same repo vendors the shared
+`scripts/register-agent.sh` helper that the snippet uses before handing off to
+the `openclaw` CLI.
 
 ## Prereqs
 

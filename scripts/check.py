@@ -4,17 +4,28 @@
 Every top-level integration folder is in exactly one of two states:
 
   - **participating** — has a ``manifest.yaml`` (metadata) and a hand-authored
-    ``bootstrap.sh`` (the copy-paste snippet). check.py validates these.
+    ``bootstrap.sh`` (the full, runnable snippet). check.py validates these.
   - **stub** — README-only, no snippet yet. Listed in :data:`STUB_ONLY` so it is
     a deliberate opt-out rather than a silent gap.
 
 Bootstrap snippets are *not* generated and have no common shape — Hermes clones a
 plugin repo and hands a skill to the gateway; OpenClaw runs a couple of curls and
-the openclaw CLI. So this script validates structure, not content: required
-manifest fields, a valid status, a bootstrap.sh, and the web-app key placeholder.
+the openclaw CLI. So this script validates structure, not content.
 
-Run ``python3 scripts/check.py`` in CI. The pytest suite under ``tests/`` asserts
-the same invariants in the thenvoi-sdk-python config-drift style.
+The minimal copy-paste version (what the web app shows in a small code block) is
+not a separate file — it's a projection of ``bootstrap.sh``:
+
+  - If the script carries ``# >>> band:mini`` / ``# <<< band:mini`` markers, the
+    mini is the lines inside those regions, in file order, across every region.
+  - If it carries no markers, the mini is the whole script — so a script that is
+    already short enough needs no markers at all.
+
+Either way the mini is stripped of comments, shebangs, and blank lines, so the
+generated snippet is pure commands, and is capped at :data:`MINI_MAX_LINES` lines
+so it always fits the web block.
+
+    python3 scripts/check.py            # validate the whole catalog (CI gate)
+    python3 scripts/check.py --mini hermes   # print hermes' minimal snippet
 """
 from __future__ import annotations
 
@@ -33,9 +44,16 @@ STUB_ONLY: set[str] = set()
 REQUIRED_MANIFEST_FIELDS = {"name", "repo", "connects_via", "status", "summary"}
 VALID_STATUSES = {"available", "planned"}
 
-# The web app substitutes the user's key for this token in a bootstrap snippet,
-# regardless of how the snippet passes it (env export, CLI flag, config write).
+# The web app substitutes the user's key for this token, regardless of how the
+# snippet passes it (env export, CLI flag, config write). Must sit inside the mini
+# projection — that's the part the web app shows and fills in.
 KEY_PLACEHOLDER = "{{BAND_USER_API_KEY}}"
+
+# Markers bounding the minimal copy-paste snippet inside bootstrap.sh. Optional:
+# a script with no markers uses its whole (comment-stripped) body as the mini.
+MINI_START = "# >>> band:mini"
+MINI_END = "# <<< band:mini"
+MINI_MAX_LINES = 15  # accumulative, across all regions; counts command lines only
 
 
 def integration_dirs() -> set[str]:
@@ -66,6 +84,73 @@ def parse_manifest(path: Path) -> dict[str, str]:
     return fields
 
 
+def strip_shell_comment(line: str) -> str:
+    """Drop a shell trailing comment: the first unquoted ``#`` that begins a word.
+
+    Quote-aware, so a ``#`` inside a string or URL is preserved; a ``#`` at line
+    start or after whitespace (and outside quotes) begins a comment and is cut.
+    A whole-line comment or shebang collapses to ``""``. For any line with no
+    ``#`` the result is just the line, right-stripped.
+    """
+    out: list[str] = []
+    quote: str | None = None
+    prev_ws = True  # start of line counts as a word boundary
+    for ch in line:
+        if quote is not None:
+            out.append(ch)
+            if ch == quote:
+                quote = None
+            prev_ws = False
+        elif ch in ("'", '"'):
+            quote = ch
+            out.append(ch)
+            prev_ws = False
+        elif ch == "#" and prev_ws:
+            break
+        else:
+            out.append(ch)
+            prev_ws = ch.isspace()
+    return "".join(out).rstrip()
+
+
+def extract_mini(text: str) -> tuple[list[str], list[str], bool]:
+    """Return ``(mini_lines, problems, has_markers)`` for a bootstrap script.
+
+    ``mini_lines`` is the copy-paste projection: the lines inside ``band:mini``
+    regions if any exist, otherwise the whole script — comment/shebang/blank lines
+    stripped either way. ``problems`` flags unbalanced or nested markers.
+    """
+    lines = text.splitlines()
+    has_markers = any(s in (MINI_START, MINI_END) for s in (l.strip() for l in lines))
+    problems: list[str] = []
+    raw: list[str] = []
+
+    if has_markers:
+        open_at: int | None = None
+        for i, line in enumerate(lines, 1):
+            marker = line.strip()
+            if marker == MINI_START:
+                if open_at is not None:
+                    problems.append(
+                        f"nested '{MINI_START}' at line {i} (region opened at line {open_at} not closed)"
+                    )
+                open_at = i
+            elif marker == MINI_END:
+                if open_at is None:
+                    problems.append(f"'{MINI_END}' at line {i} has no matching start")
+                else:
+                    open_at = None
+            elif open_at is not None:
+                raw.append(line)
+        if open_at is not None:
+            problems.append(f"unclosed '{MINI_START}' at line {open_at}")
+    else:
+        raw = lines
+
+    mini = [s for s in (strip_shell_comment(l) for l in raw) if s.strip()]
+    return mini, problems, has_markers
+
+
 def validate_integration(name: str) -> list[str]:
     """Return a list of problems for a participating integration (empty == ok)."""
     problems: list[str] = []
@@ -77,21 +162,57 @@ def validate_integration(name: str) -> list[str]:
         problems.append(f"{name}: manifest.yaml missing fields {sorted(missing)}")
     status = fields.get("status")
     if status is not None and status not in VALID_STATUSES:
-        problems.append(
-            f"{name}: status '{status}' not in {sorted(VALID_STATUSES)}"
-        )
+        problems.append(f"{name}: status '{status}' not in {sorted(VALID_STATUSES)}")
 
     bootstrap = d / "bootstrap.sh"
     if not bootstrap.exists():
-        problems.append(f"{name}: no bootstrap.sh (participating integrations must ship one)")
-    elif KEY_PLACEHOLDER not in bootstrap.read_text(encoding="utf-8"):
         problems.append(
-            f"{name}: bootstrap.sh has no '{KEY_PLACEHOLDER}' placeholder for the web app to fill"
+            f"{name}: no bootstrap.sh (participating integrations must ship one)"
+        )
+        return problems
+
+    mini, mini_problems, has_markers = extract_mini(bootstrap.read_text(encoding="utf-8"))
+    problems.extend(f"{name}: {p}" for p in mini_problems)
+
+    if not mini:
+        if not mini_problems:
+            problems.append(f"{name}: bootstrap.sh has no command lines")
+    elif len(mini) > MINI_MAX_LINES:
+        if has_markers:
+            problems.append(
+                f"{name}: mini snippet is {len(mini)} lines, over the {MINI_MAX_LINES}-line cap "
+                f"(trim the '{MINI_START}' region(s) so it fits a small code block)"
+            )
+        else:
+            problems.append(
+                f"{name}: bootstrap.sh has {len(mini)} command lines, over the {MINI_MAX_LINES}-line cap "
+                f"(wrap the copy-paste subset in '{MINI_START}' / '{MINI_END}' markers)"
+            )
+
+    if mini and KEY_PLACEHOLDER not in "\n".join(mini):
+        problems.append(
+            f"{name}: '{KEY_PLACEHOLDER}' placeholder must appear in the mini snippet "
+            f"(the part the web app fills in)"
         )
     return problems
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+
+    if len(argv) >= 2 and argv[0] == "--mini":
+        name = argv[1]
+        bootstrap = ROOT / name / "bootstrap.sh"
+        if not bootstrap.exists():
+            print(f"no {name}/bootstrap.sh", file=sys.stderr)
+            return 1
+        mini, mini_problems, _ = extract_mini(bootstrap.read_text(encoding="utf-8"))
+        if mini_problems:
+            print("\n".join(mini_problems), file=sys.stderr)
+            return 1
+        print("\n".join(mini))
+        return 0
+
     problems: list[str] = []
 
     # Completeness: every folder is participating or an explicit stub.

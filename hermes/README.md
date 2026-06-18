@@ -14,18 +14,24 @@ access control — only messages Band delivers reach the agent.
 
 ## Bootstrap
 
-Run on the host where your Hermes gateway runs. The Band web app hands you the
-snippet with your key already filled in — the script is [`bootstrap.sh`](bootstrap.sh).
+Run [`bootstrap.sh`](bootstrap.sh) on the host where your Hermes gateway runs — the
+Band web app hands it to you with your key already filled in. It does only what the
+bootstrapper is uniquely placed to do, then hands off:
 
-> Credentials: set `BAND_USER_API_KEY` to have the skill register an agent for
-> you, or create one at `app.band.ai/agents/new` and use `BAND_AGENT_ID` +
-> `BAND_API_KEY` instead. See [Prereqs](#prereqs).
+1. **Clone** the integration repo.
+2. **Register** a Band agent from your *user* key — consumed in a plain shell, so the
+   broad key never enters the agent's own environment. Only the agent-scoped
+   `BAND_AGENT_ID` + `BAND_API_KEY` are written to Hermes, then the user key is dropped.
+3. **Plant** the `add-band` skill into `$HERMES_HOME/skills` so `hermes chat -s add-band`
+   is invocable on a fresh box (a plugin-shipped skill isn't, until installed).
+4. **Hand off** to the skill, which installs the plugin, enables it, restarts the
+   gateway, and verifies the hub — the single source of truth for those steps, so the
+   snippet never reimplements them and never goes stale. Credentials are already saved,
+   so the skill skips its credential gate straight to the live @mention test.
 
-It pulls the official `add-band` setup skill from the plugin repo and hands it to
-Hermes, which installs the plugin into the gateway's Python, enables it,
-registers the Band agent, restarts the gateway, and verifies the hub. The skill
-is the source of truth for every step — this snippet stays thin and never goes
-stale.
+> **Pre-created agent instead?** Make one at `app.band.ai/agents/new`, save
+> `BAND_AGENT_ID` + `BAND_API_KEY` with Hermes's env writer, and drop the registration
+> step. See [Prereqs](#prereqs).
 
 ## Source
 
@@ -60,13 +66,8 @@ Full configuration (hub pinning, allowlists, failover) is documented in the
 
 ## Verify
 
-After the gateway restarts, check the real connection signals:
-
-```bash
-grep -E '\[band\] Connected as agent|\[band\] Hub ready: room|✓ band connected' ~/.hermes/logs/gateway.log
-grep BAND_HUB_ROOM ~/.hermes/.env   # a non-empty UUID = hub created
-```
-
-Then open the auto-created **"Hermes Agent Hub"** room in Band and **@mention the
-agent** — Band has no DMs, so an un-mentioned message is ignored by design. A
-reply means you're live.
+After the gateway restarts, the Band connection surfaces in the gateway log (a
+"Connected as agent" / "Hub ready" line) and `BAND_HUB_ROOM` is set to a UUID in
+Hermes's `.env` — the skill's `verify_gateway.py` checks both for you. Then open the
+auto-created **"Hermes Agent Hub"** room in Band and **@mention the agent** — Band has
+no DMs, so an un-mentioned message is ignored by design. A reply means you're live.
