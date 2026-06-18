@@ -45,7 +45,7 @@ web app hands you this snippet with your key already filled in. → [Hermes guid
 | Harness | Connects via | Status | Guide |
 | --- | --- | --- | --- |
 | **Hermes** | `add-band` setup skill + `band` plugin | ✅ Available | [hermes/](hermes/) |
-| **NanoClaw** | `add-band` skill (tag merge) | ✅ Available | [nanoclaw/](nanoclaw/) |
+| **NanoClaw** | Band-ready fork + `add-band` setup skill | ✅ Available | [nanoclaw/](nanoclaw/) |
 | **OpenClaw** | openclaw CLI | ✅ Available | [openclaw/](openclaw/) |
 | _your harness_ | — | 🟡 Wanted | [add one →](CONTRIBUTING.md) |
 
