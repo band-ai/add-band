@@ -1,27 +1,43 @@
 # NanoClaw ↔ Band
 
-> 🚧 **Planned — not available yet.** This folder reserves the integration and
-> tracks what it needs. Want it sooner? See [CONTRIBUTING.md](../CONTRIBUTING.md).
-
 ## What it connects
 
-_TBD_ — will connect a NanoClaw agent to Band (messaging, rooms, and the `band`
-action toolset). Mechanism (skill / plugin / MCP / SDK adapter) to be decided.
+Connects a **NanoClaw** agent to Band — Band rooms/chats, plus the SDK-backed
+`band_*` platform tools. The channel registers as `band`, platform IDs use the
+`band:` prefix, and config lives in `BAND_*` env vars.
+
+NanoClaw's Band channel is **fork-shaped**: it touches core host and container
+files, not a single adapter. So it installs by *merging a version-pinned
+`band-v<X.Y.Z>` tag* (3-way, conflict-aware) rather than copying files — a merge
+surfaces conflicts where your install has local changes instead of silently
+overwriting them. That work lives in NanoClaw's [`add-band`](https://github.com/thenvoi/nanoclaw-thenvoi)
+skill; the snippet below just registers a Band agent and hands off to it.
 
 ## Bootstrap
 
-Not available yet. When ready, `bootstrap.sh` lands here and the snippet goes in
-this section — copy [`_template/`](../_template/) to build it.
+Run from your **NanoClaw checkout** — the Band web app hands you the snippet with
+your key already filled in; the script is [`bootstrap.sh`](bootstrap.sh).
+
+It does the one step the skill doesn't — register a Band agent with your **user**
+key and capture its **agent** id + key — writes them to `.env`, then hands off to
+`add-band`, which merges the Band tag, installs deps, builds, and wires the room.
 
 ## Source
 
-_TBD_ — the real artifact will live in NanoClaw's own repo; this folder will only
-hold the on-ramp + a pinned ref to it.
+The integration's real code and the `add-band` skill live in NanoClaw's own repo:
+[`thenvoi/nanoclaw-thenvoi`](https://github.com/thenvoi/nanoclaw-thenvoi)
+(`.claude/skills/add-band/`, installed via `band-v<X.Y.Z>` tags). This folder
+holds only the on-ramp.
 
 ## Prereqs
 
-_TBD_ — runtime/version requirements and the Band credentials needed.
+- A working **NanoClaw checkout** on a tagged release (`node` + `pnpm` available),
+  run the snippet from its root.
+- A Band account + **user** API key — supplied by the web app at the
+  `{{BAND_USER_API_KEY}}` placeholder; used once to register the agent.
 
 ## Verify
 
-_TBD_ — the concrete signal that it worked.
+@mention the agent in the wired Band room. A reply means the channel is live. If
+messages land in Band but the agent stays silent, the room is discovered but not
+wired — see the skill's Troubleshooting and run `/manage-channels`.

@@ -6,9 +6,9 @@
 # the integration's real artifact and hand off; the heavy lifting lives upstream.
 #
 # The ONE rule the web app relies on: put the user's key behind the literal
-# token YOUR_BAND_KEY (in an env export, a CLI flag, a config write — your call).
+# token {{BAND_USER_API_KEY}} (in an env export, a CLI flag, a config write — your call).
 set -e
 
 # ... your connect steps ...
-export BAND_API_KEY=YOUR_BAND_KEY   # the web app fills this in
+export BAND_API_KEY={{BAND_USER_API_KEY}}   # the web app fills this in
 echo "TODO: replace with the real <Harness> connect steps"

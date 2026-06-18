@@ -28,14 +28,14 @@ STRUCTURAL = {"scripts", "tests"}
 
 # README-only stubs with no bootstrap yet. Listing one here is a deliberate
 # opt-out; the drift test fails for any unclassified folder.
-STUB_ONLY = {"nanoclaw"}
+STUB_ONLY: set[str] = set()
 
 REQUIRED_MANIFEST_FIELDS = {"name", "repo", "connects_via", "status", "summary"}
 VALID_STATUSES = {"available", "planned"}
 
 # The web app substitutes the user's key for this token in a bootstrap snippet,
 # regardless of how the snippet passes it (env export, CLI flag, config write).
-KEY_PLACEHOLDER = "YOUR_BAND_KEY"
+KEY_PLACEHOLDER = "{{BAND_USER_API_KEY}}"
 
 
 def integration_dirs() -> set[str]:

@@ -14,15 +14,8 @@ access control — only messages Band delivers reach the agent.
 
 ## Bootstrap
 
-Run on the host where your Hermes gateway runs. The Band web app hands you this
-snippet ([`bootstrap.sh`](bootstrap.sh)) with your key already filled in:
-
-```bash
-export BAND_USER_API_KEY=YOUR_BAND_KEY   # the web app fills this in
-rm -rf /tmp/hbp
-git clone --depth 1 --branch main https://github.com/band-ai/hermes-band-platform /tmp/hbp
-hermes /add-band 2>/dev/null || cat /tmp/hbp/hermes_band_platform/skills/add-band/SKILL.md
-```
+Run on the host where your Hermes gateway runs. The Band web app hands you the
+snippet with your key already filled in — the script is [`bootstrap.sh`](bootstrap.sh).
 
 > Credentials: set `BAND_USER_API_KEY` to have the skill register an agent for
 > you, or create one at `app.band.ai/agents/new` and use `BAND_AGENT_ID` +

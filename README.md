@@ -30,7 +30,7 @@ where your gateway runs:
 
 <!-- This block mirrors hermes/bootstrap.sh. -->
 ```bash
-export BAND_USER_API_KEY=YOUR_BAND_KEY   # app.band.ai fills this in for you
+export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # app.band.ai fills this in for you
 rm -rf /tmp/hbp
 git clone --depth 1 --branch main https://github.com/band-ai/hermes-band-platform /tmp/hbp
 hermes /add-band 2>/dev/null || cat /tmp/hbp/hermes_band_platform/skills/add-band/SKILL.md
@@ -45,8 +45,8 @@ web app hands you this snippet with your key already filled in. → [Hermes guid
 | Harness | Connects via | Status | Guide |
 | --- | --- | --- | --- |
 | **Hermes** | `add-band` setup skill + `band` plugin | ✅ Available | [hermes/](hermes/) |
-| **NanoClaw** | TBD | 🚧 Planned | [nanoclaw/](nanoclaw/) |
-| **OpenClaw** | openclaw CLI | 🚧 Planned | [openclaw/](openclaw/) |
+| **NanoClaw** | `add-band` skill (tag merge) | ✅ Available | [nanoclaw/](nanoclaw/) |
+| **OpenClaw** | openclaw CLI | ✅ Available | [openclaw/](openclaw/) |
 | _your harness_ | — | 🟡 Wanted | [add one →](CONTRIBUTING.md) |
 
 ## How it works
@@ -73,7 +73,7 @@ Each integration ships a **hand-authored `bootstrap.sh`** (committed) plus a
 `manifest.yaml` of metadata. Bootstraps don't share a shape — Hermes hands a
 skill to its gateway; OpenClaw runs a couple of `curl`s and the `openclaw` CLI —
 so they aren't generated. The web app reads the script and swaps in your key at a
-`YOUR_BAND_KEY` placeholder; `scripts/check.py` keeps every integration valid.
+`{{BAND_USER_API_KEY}}` placeholder; `scripts/check.py` keeps every integration valid.
 
 <details>
 <summary>Repo layout</summary>
@@ -87,14 +87,14 @@ _template/           ← copy to start a new integration
 <harness>/
   manifest.yaml      ← catalog metadata: name, repo, connects_via, status, summary
   bootstrap.sh       ← the copy-paste snippet — hand-authored, committed
-  README.md          ← what it connects · the snippet · prereqs · verify · source
+  README.md          ← what it connects · how to run it · prereqs · verify · source
 ```
 </details>
 
 ## Add your harness
 
-Copy `_template/`, fill in `manifest.yaml` + a short README, run
-`python3 scripts/gen.py`, and open a PR. The full contract is in
+Copy `_template/`, fill in `manifest.yaml` + a short README, validate with
+`python3 scripts/check.py`, and open a PR. The full contract is in
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Roadmap

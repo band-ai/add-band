@@ -31,8 +31,9 @@ upstream).
 
 ## The one rule the web app relies on
 
-Put the user's key behind the literal token **`YOUR_BAND_KEY`** in `bootstrap.sh`
-— in an env export, a CLI flag, a config write, whatever the harness wants. The
+Put the user's key behind the literal token **`{{BAND_USER_API_KEY}}`** in
+`bootstrap.sh` — in an env export, a CLI flag, a config write, whatever the
+harness wants. The
 web app reads the script and string-replaces that token with the user's key, so
 it needs no per-shape logic. `check.py` enforces the token's presence.
 
@@ -42,7 +43,7 @@ it needs no per-shape logic. `check.py` enforces the token's presence.
 
 - **participating** — has a `manifest.yaml` + `bootstrap.sh`. Validated:
   required manifest fields, a valid `status`, a `bootstrap.sh` carrying the
-  `YOUR_BAND_KEY` placeholder, and (via the tests) `bash -n` syntax.
+  `{{BAND_USER_API_KEY}}` placeholder, and (via the tests) `bash -n` syntax.
 - **stub** — README-only, no snippet yet. Must be listed in `STUB_ONLY` in
   `scripts/check.py`, so it's a deliberate opt-out, not a silent gap.
 
@@ -57,7 +58,9 @@ parametrized validation + `bash -n` test — so nothing drops out of CI unnotice
 Every integration README answers the same five things, in order:
 
 1. **What it connects** — one paragraph: which Band capabilities the agent gets.
-2. **Bootstrap** — the copy-paste snippet (mirrors `bootstrap.sh`).
+2. **Bootstrap** — where and how to run it; link to `bootstrap.sh`, don't paste a
+   copy of it. The web app serves the real snippet with the key filled in, and a
+   duplicate in the README only drifts.
 3. **Source** — the upstream repo where the real artifact lives, plus its path.
 4. **Prereqs** — runtime/version requirements and the Band credentials needed.
 5. **Verify** — the concrete signal that it worked ("you should see…").
@@ -69,7 +72,7 @@ Every integration README answers the same five things, in order:
 - **Pin refs in the snippet.** Clone a tag/commit, not a moving branch, so a
   copied snippet keeps working.
 - **Fail loud.** Prefer `set -e` and an early check for the harness binary.
-- **Never require pasting a secret into a command.** Use the `YOUR_BAND_KEY`
+- **Never require pasting a secret into a command.** Use the `{{BAND_USER_API_KEY}}`
   placeholder; the user's key arrives via the web app or their environment.
 
 ## Going full CLI later
@@ -81,6 +84,6 @@ machine-readable; what's left to build:
 - **A registry / machine-readable index** the CLI lists from, instead of the
   Markdown table (which would be generated from it).
 - **The CLI runs the integration's `bootstrap.sh`** (or a structured form of it),
-  prompting for `YOUR_BAND_KEY` and the harness's prereqs.
+  prompting for `{{BAND_USER_API_KEY}}` and the harness's prereqs.
 - **Schema + link validation in CI**, extending `check.py` so a bad manifest
   can't ship.
