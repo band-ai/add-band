@@ -19,4 +19,5 @@ mkdir -p "$(dirname "$hermes_env")"
 bash "$("$hermes_python" -c 'import hermes_band_platform; print(hermes_band_platform.__path__[0])')/scripts/register-agent.sh" | sed -n -e 's/^export //' -e '/^[A-Z_][A-Z0-9_]*=/p' >> "$hermes_env"
 unset BAND_USER_API_KEY
 hermes plugins enable band
+hermes chat -s add-band
 hermes gateway restart
