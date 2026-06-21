@@ -5,19 +5,19 @@
 ## What it connects
 
 Connects an OpenClaw agent to Band through the **`openclaw` CLI**. The snippet
-fetches the `openclaw-band` integration repo for the shared registration helper,
-registers a Band agent with your user key, then the CLI installs the
+fetches the `openclaw-channel-band` integration repo for the shared registration helper,
+registers a Band agent with your Band API key, then the CLI installs the
 `openclaw-channel-band` plugin and wires that agent in as a channel account.
 
 ## Bootstrap
 
 Run on the host where OpenClaw runs. The Band web app gives you a `curl … | bash`
-one-liner and your Band user API key; run it and paste the key when the script prompts.
+one-liner and your Band API key; run it and paste the key when the script prompts.
 The script is [`bootstrap.sh`](bootstrap.sh).
 
 ## Source
 
-The channel ships from [`band-ai/openclaw-band`](https://github.com/band-ai/openclaw-band)
+The channel ships from [`band-ai/openclaw-channel-band`](https://github.com/band-ai/openclaw-channel-band)
 as the `@band-ai/openclaw-channel-band` plugin. The same repo vendors the shared
 `scripts/register-agent.sh` helper that the snippet uses before handing off to
 the `openclaw` CLI.
@@ -25,8 +25,8 @@ the `openclaw` CLI.
 ## Prereqs
 
 - OpenClaw installed, with the `openclaw` CLI on `PATH`.
-- A Band account + user API key — paste it at the prompt (or pre-set
-  `BAND_USER_API_KEY`); used once to register the agent.
+- A Band account + API key — paste it at the prompt (or pre-set
+  `BAND_API_KEY`); used once to register the agent.
 
 ## Verify
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Connect this machine's Hermes agent to Band. Bash does only what it's uniquely placed
 # to do — install the band plugin (which ships the add-band skill) and mint a Band agent
-# from your user key (a script reads the key, never the LLM) — then hands off to the
+# from your Band API key (a script reads the key, never the LLM) — then hands off to the
 # skill, which completes plugin setup, wires Band in as a communication channel with
 # context isolation, bootstraps the hub, and sends you the agent's first message.
 set -euo pipefail
@@ -9,15 +9,15 @@ set -euo pipefail
 command -v uv >/dev/null || { echo "install uv first: https://docs.astral.sh/uv/"; exit 1; }
 command -v hermes >/dev/null || { echo "install hermes first"; exit 1; }
 
-# Get your Band user API key: paste it at the prompt (pre-set BAND_USER_API_KEY to skip).
-if [ -z "${BAND_USER_API_KEY:-}" ]; then
-  [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_USER_API_KEY and re-run" >&2; exit 1; }
-  printf 'Paste your Band user API key: ' >/dev/tty
-  IFS= read -r -s BAND_USER_API_KEY </dev/tty
+# Get your Band API key: paste it at the prompt (pre-set BAND_API_KEY to skip).
+if [ -z "${BAND_API_KEY:-}" ]; then
+  [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_API_KEY and re-run" >&2; exit 1; }
+  printf 'Paste your Band API key: ' >/dev/tty
+  IFS= read -r -s BAND_API_KEY </dev/tty
   printf '\n' >/dev/tty
 fi
-[ -n "${BAND_USER_API_KEY:-}" ] || { echo "Band user API key required" >&2; exit 1; }
-export BAND_USER_API_KEY
+[ -n "${BAND_API_KEY:-}" ] || { echo "Band API key required" >&2; exit 1; }
+export BAND_API_KEY
 
 # Install the band platform (it ships the add-band skill) into the gateway's own Python.
 hermes_python="$(hermes --version 2>&1 | sed -n 's/^Project: //p')/venv/bin/python"
@@ -33,7 +33,7 @@ uv pip install --python "$hermes_python" "hermes-band-platform @ git+https://git
 # with the SDK CLI and remove the bundled helper.
 skill_dir="$("$hermes_python" -c 'import pathlib, hermes_band_platform; print(pathlib.Path(hermes_band_platform.__path__[0]) / "skills" / "add-band")')"
 "$hermes_python" "$skill_dir/scripts/register_agent.py"
-unset BAND_USER_API_KEY
+unset BAND_API_KEY
 
 # Enable the plugin, then hand off to the agent: the add-band skill restarts the gateway,
 # wires Band in as a comms channel with context isolation, bootstraps the hub, and sends

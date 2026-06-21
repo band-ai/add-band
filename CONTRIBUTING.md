@@ -33,33 +33,22 @@ upstream).
 
 ## The one rule the web app relies on
 
-The web app hands the user a Band **user API key** to copy and a `curl … | bash`
+The web app hands the user a Band **API key** to copy and a `curl … | bash`
 one-liner — it does **not** edit the script. So every `bootstrap.sh` must **acquire the
-key itself**: when `BAND_USER_API_KEY` is unset, prompt for it (read from `/dev/tty`,
+key itself**: when `BAND_API_KEY` is unset, prompt for it (read from `/dev/tty`,
 since `curl … | bash` makes stdin the script), and otherwise accept it from the
-environment. `check.py` enforces that the snippet references `BAND_USER_API_KEY`.
+environment. `check.py` enforces that the snippet references `BAND_API_KEY`.
 
-### The minimal copy-paste version
-
-The web app shows a small code block — the **mini** — projected from `bootstrap.sh`,
-not a separate file:
-
-- No markers? The whole script is the mini, as long as it's short enough.
-- Longer script? Wrap the copy-paste subset in `# >>> band:mini` / `# <<< band:mini`
-  (multiple regions allowed; they concatenate in file order).
-
-Either way the mini is stripped of comments, shebangs, and blank lines, and capped
-at **25 command lines** so it fits the block. The key handling (the `BAND_USER_API_KEY`
-prompt) must land inside it. Preview exactly what ships with `python3 scripts/check.py --mini <harness>`.
+The whole `bootstrap.sh` is what the web app serves behind the `curl … | bash`
+one-liner, so keep it thin and readable.
 
 ## How the catalog is validated
 
 `scripts/check.py` (run in CI) classifies every top-level integration folder:
 
 - **participating** — has a `manifest.yaml` + `bootstrap.sh`. Validated:
-  required manifest fields, a valid `status`, a `bootstrap.sh` whose mini snippet
-  handles `BAND_USER_API_KEY` (prompt or pre-set env) and fits the 25-line cap, and
-  (via the tests) `bash -n` syntax.
+  required manifest fields, a valid `status`, a `bootstrap.sh` that handles
+  `BAND_API_KEY` (prompt or pre-set env), and (via the tests) `bash -n` syntax.
 - **stub** — README-only, no snippet yet. Must be listed in `STUB_ONLY` in
   `scripts/check.py`, so it's a deliberate opt-out, not a silent gap.
 
@@ -87,7 +76,7 @@ Every integration README answers the same five things, in order:
   plugin here — point at its repo. Install logic lives upstream.
 - **Shared helper scripts have one source of truth.** `scripts/register-agent.sh`
   is the canonical shell helper for minting agent-scoped Band credentials from a
-  user key. Integration repos that need an offline copy should vendor it under
+  Band API key. Integration repos that need an offline copy should vendor it under
   their own add-band skill (for example
   `.claude/skills/add-band/scripts/register-agent.sh`) and keep it synced with
   `python3 scripts/check-register-agent-sync.py --sync`. Run the checker without
@@ -96,7 +85,7 @@ Every integration README answers the same five things, in order:
 - **Pin refs in the snippet.** Clone a tag/commit, not a moving branch, so a
   copied snippet keeps working.
 - **Fail loud.** Prefer `set -e` and an early check for the harness binary.
-- **Never bake a secret into the snippet.** Prompt for `BAND_USER_API_KEY` from
+- **Never bake a secret into the snippet.** Prompt for `BAND_API_KEY` from
   `/dev/tty` when it's unset, or accept it pre-set in the environment.
 
 ## Going full CLI later
@@ -108,6 +97,6 @@ machine-readable; what's left to build:
 - **A registry / machine-readable index** the CLI lists from, instead of the
   Markdown table (which would be generated from it).
 - **The CLI runs the integration's `bootstrap.sh`** (or a structured form of it),
-  supplying `BAND_USER_API_KEY` and checking the harness's prereqs.
+  supplying `BAND_API_KEY` and checking the harness's prereqs.
 - **Schema + link validation in CI**, extending `check.py` so a bad manifest
   can't ship.

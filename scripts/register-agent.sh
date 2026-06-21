@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 #
-# Register a Band external agent from a user API key, using only curl + a JSON
+# Register a Band external agent from a Band API key, using only curl + a JSON
 # parser. A portable, dependency-light alternative to the Hermes plugin's
 # hermes_band_platform/skills/add-band/scripts/register_agent.py: no Python SDK,
 # no hermes_cli, no cloned repo — so a bootstrap can mint a Band agent before it
 # installs anything (the same shape openclaw/bootstrap.sh uses).
 #
-# Security: the user key is read from $BAND_USER_API_KEY (never an argument) and
-# handed to curl through a --config heredoc on stdin, so it never appears in any
-# process's argv (`ps`). Only the returned agent-scoped id + key are printed; the
-# user key is never echoed.
+# Security: the key is read from $BAND_API_KEY (never an argument) and handed to
+# curl through a --config heredoc on stdin, so it never appears in any process's
+# argv (`ps`). Only the returned agent-scoped id + key are printed; the Band API
+# key is never echoed.
 #
 # Output (stdout — capture- / eval-able):
 #   BAND_AGENT_ID=<uuid>
-#   BAND_API_KEY=<agent-key>
+#   BAND_AGENT_API_KEY=<agent-key>
 #
 # Usage:
-#   export BAND_USER_API_KEY=...             # required
-#   eval "$(scripts/register-agent.sh)"      # sets BAND_AGENT_ID + BAND_API_KEY
+#   export BAND_API_KEY=...                  # or omit and paste it at the prompt
+#   eval "$(scripts/register-agent.sh)"      # sets BAND_AGENT_ID + BAND_AGENT_API_KEY
 #
 # Env knobs: BAND_BASE_URL (default https://app.band.ai),
 #            BAND_AGENT_NAME, BAND_AGENT_DESCRIPTION.
@@ -26,14 +26,23 @@ set -euo pipefail
 base="${BAND_BASE_URL:-https://app.band.ai}"; base="${base%/}"
 name="${BAND_AGENT_NAME:-Band agent}"
 desc="${BAND_AGENT_DESCRIPTION:-Agent on Band}"
-: "${BAND_USER_API_KEY:?set BAND_USER_API_KEY to a Band user API key with agent-create scope}"
+# Read the Band API key: prompt on /dev/tty when unset (curl|bash makes stdin the
+# script), or accept a pre-set BAND_API_KEY. The prompt writes to /dev/tty, not
+# stdout, so it never pollutes the eval-able output above.
+if [ -z "${BAND_API_KEY:-}" ]; then
+  [ -r /dev/tty ] || { echo "band: set BAND_API_KEY (no terminal to prompt on)" >&2; exit 1; }
+  printf 'Paste your Band API key: ' >/dev/tty
+  IFS= read -r -s BAND_API_KEY </dev/tty
+  printf '\n' >/dev/tty
+fi
+[ -n "${BAND_API_KEY:-}" ] || { echo "band: Band API key (agent-create scope) required" >&2; exit 1; }
 
 req_body=$(printf '{"agent":{"name":"%s","description":"%s"}}' "$name" "$desc")
 
 # Only the secret X-API-Key header goes through stdin (-K -), never argv.
 resp=$(curl -sS -X POST "$base/api/v1/me/agents/register" \
   -H "Content-Type: application/json" -d "$req_body" -w $'\n%{http_code}' -K - <<EOF
-header = "X-API-Key: $BAND_USER_API_KEY"
+header = "X-API-Key: $BAND_API_KEY"
 EOF
 ) || true
 
@@ -73,4 +82,4 @@ fi
   exit 1
 }
 
-printf 'BAND_AGENT_ID=%s\nBAND_API_KEY=%s\n' "$id" "$key"
+printf 'BAND_AGENT_ID=%s\nBAND_AGENT_API_KEY=%s\n' "$id" "$key"

@@ -6,14 +6,14 @@ your everyday install.
 
 The snippet ([`bootstrap.sh`](bootstrap.sh)) is thin by design: it installs
 [`hermes-band-platform`](https://github.com/band-ai/hermes-band-platform) into the
-gateway Python from a Git ref, registers a Band agent from your user key (in a
+gateway Python from a Git ref, registers a Band agent from your Band API key (in a
 plain shell, so the key never reaches the agent), then hands off to
 `hermes chat -s add-band`. The skill owns the remaining enable/restart/verify loop —
 this test confirms that hand-off works and verifies the result.
 
 ## Prereqs
 
-- A **Band account** and a **user API key that can create external agents** (Enterprise).
+- A **Band account** and a **API key that can create external agents** (Enterprise).
   This is the only thing you supply by hand — the web app fills it in for real users.
 - `git`, and network access to clone `band-ai/hermes-band-platform`.
 - The gateway must run on **Python 3.11–3.13** (`band-sdk` has no 3.14 wheels yet).
@@ -56,11 +56,11 @@ hermes                  # say "hi", get a reply, exit. No reply ⇒ fix model/au
 ## Part 1 — The copy-paste (the actual user flow)
 
 Run from the `add-band` repo root. Substitute the real key for
-`{{BAND_USER_API_KEY}}` — exactly what the web app gives you to paste — then run
+`{{BAND_API_KEY}}` — exactly what the web app gives you to paste — then run
 the local bootstrap harness in the Part 0 shell:
 
 ```bash
-export BAND_USER_API_KEY="<your-band-user-api-key>"   # the web app fills this in
+export BAND_API_KEY="<your-band-api-key>"   # the web app fills this in
 export BAND_HERMES_REF="${BAND_HERMES_REF:-main}"      # use a tag/commit for reproducible staging
 scripts/local-bootstrap.sh hermes
 ```
@@ -71,8 +71,8 @@ scripts/local-bootstrap.sh hermes
    Python, which also installs `band-sdk`. A production PR should switch this to
    a pinned PyPI package only after PyPI is published and verified.
 2. The bundled `scripts/register_agent.py` helper mints the agent and Hermes's
-   env writer saves only `BAND_AGENT_ID` + `BAND_API_KEY` to `$HERMES_HOME/.env`;
-   the **user** key is then unset. Confirm: `grep -E 'BAND_AGENT_ID|BAND_API_KEY' "$HERMES_HOME/.env"`.
+   env writer saves only `BAND_AGENT_ID` + `BAND_AGENT_API_KEY` to `$HERMES_HOME/.env`;
+   the Band API key is then unset. Confirm: `grep -E 'BAND_AGENT_ID|BAND_AGENT_API_KEY' "$HERMES_HOME/.env"`.
 3. The bootstrap enables the plugin (CLI or config fallback) and opens
    `hermes chat -s add-band`, which follows the skill to restart the gateway,
    verify the hub, and prove the round trip.
@@ -113,7 +113,7 @@ grep BAND_HUB_ROOM "$HERMES_HOME/.env"   # a non-empty UUID ⇒ hub created
 
 ## Pass/fail checklist
 
-- [ ] `register_agent.py` → `BAND_AGENT_ID` + `BAND_API_KEY` saved in `$HERMES_HOME/.env`; user key gone
+- [ ] `register_agent.py` → `BAND_AGENT_ID` + `BAND_AGENT_API_KEY` saved in `$HERMES_HOME/.env`; Band API key gone
 - [ ] `verify_install.py` → `success: true` (package + sdk + entry point/manifest + enabled + creds)
 - [ ] `verify_gateway.py` → hub present, Band connection signals, no failure signal
 - [ ] `BAND_HUB_ROOM` is a non-empty UUID
@@ -152,8 +152,8 @@ band-ai/hermes-band-platform --enable`, then explicitly prompt/install
 ```bash
 hermes gateway stop 2>/dev/null
 rm -rf "$HERMES_HOME"
-unset HERMES_HOME HERMES_PY BAND_USER_API_KEY
-# In app.band.ai: delete the test agent and rotate/revoke the test user API key.
+unset HERMES_HOME HERMES_PY BAND_API_KEY
+# In app.band.ai: delete the test agent and rotate/revoke the test API key.
 ```
 
 ---
@@ -162,7 +162,7 @@ unset HERMES_HOME HERMES_PY BAND_USER_API_KEY
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `register_agent.py` exits with HTTP 401/403 | User key lacks external-agent create permission, or it is wrong. Use an Enterprise user key. |
+| `register_agent.py` exits with HTTP 401/403 | Band API key lacks external-agent create permission, or it is wrong. Use an Enterprise key. |
 | `HERMES_PY` is empty / `python: not found` | `hermes --version` didn't print a `Project:` line. Set `HERMES_PY` to the gateway's venv python by hand. |
 | `hermes chat -s add-band` cannot find the skill | Confirm the package installed into the gateway Python and `hermes_band_platform/skills/add-band/SKILL.md` is present in that package. |
 | Git-ref package install fails | Confirm `BAND_HERMES_REF` points to a public branch/tag/commit. Switch to pinned PyPI only after publication is verified. |

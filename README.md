@@ -26,7 +26,7 @@ so it can't go stale.
 ## Quickstart
 
 Connect a **Hermes** agent (other harnesses [below](#integrations)). The Band web app
-gives you a `curl … | bash` one-liner and your Band user API key; run it on the host
+gives you a `curl … | bash` one-liner and your Band API key; run it on the host
 where your gateway runs and paste the key when prompted. The exact script is
 [`hermes/bootstrap.sh`](hermes/bootstrap.sh).
 

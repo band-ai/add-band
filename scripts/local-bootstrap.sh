@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run an integration's local bootstrap.sh the way the web app's `curl ... | bash`
 # delivery does, so you can test your own edits before they ship. No key substitution:
-# you'll be prompted for your Band user API key (or pre-set BAND_USER_API_KEY).
+# you'll be prompted for your Band API key (or pre-set BAND_API_KEY).
 set -euo pipefail
 
 usage() {
@@ -15,7 +15,7 @@ Modes (default --pipe):
   --curl    curl -fsSL "file://.../bootstrap.sh" | bash   also exercises the file:// fetch path
   --print   print the script that would run, then exit    (dry run; no execution)
 
-The bootstrap prompts for BAND_USER_API_KEY from /dev/tty; export it first to skip the prompt.
+The bootstrap prompts for BAND_API_KEY from /dev/tty; export it first to skip the prompt.
 USAGE
 }
 
