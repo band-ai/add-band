@@ -133,7 +133,7 @@ yourself after Part 1:
 
 ```bash
 # Install the plugin from your LOCAL checkout into the gateway interpreter (+ band-sdk).
-uv pip install --python "$HERMES_PY" -e /Users/nirs/band/hermes-band-platform
+uv pip install --python "$HERMES_PY" -e /path/to/hermes-band-platform
 
 # Enable it; fall back to writing plugins.enabled if the CLI doesn't list entry-point plugins.
 hermes plugins enable band 2>/dev/null && hermes plugins list | grep -qw band \
