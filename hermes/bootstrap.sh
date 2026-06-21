@@ -15,10 +15,12 @@ hermes_python="$(hermes --version 2>&1 | sed -n 's/^Project: //p')/venv/bin/pyth
 [ -x "$hermes_python" ] || { echo "could not find Hermes Python at $hermes_python"; exit 1; }
 uv pip install --python "$hermes_python" hermes-band-platform
 
-# Mint the Band agent using the installed package's registration script.
+# Mint the Band agent with the SDK's registration CLI (a script reads the key, never the
+# LLM). band-sdk ships it and rides in with the plugin install above; it prints only the
+# agent-scoped creds — keep just those KEY=VAL lines.
 hermes_env="${HERMES_HOME:-$HOME/.hermes}/.env"
 mkdir -p "$(dirname "$hermes_env")"
-bash "$("$hermes_python" -c 'import hermes_band_platform; print(hermes_band_platform.__path__[0])')/scripts/register-agent.sh" | sed -n -e 's/^export //' -e '/^[A-Z_][A-Z0-9_]*=/p' >> "$hermes_env"
+"$hermes_python" -m band.cli.register_agent | sed -n -e 's/^export //' -e '/^[A-Z_][A-Z0-9_]*=/p' >> "$hermes_env"
 unset BAND_USER_API_KEY
 
 # Enable the plugin, then hand off to the agent: the add-band skill restarts the gateway,
