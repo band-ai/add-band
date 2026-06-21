@@ -25,4 +25,4 @@ unset BAND_USER_API_KEY
 # wires Band in as a comms channel with context isolation, bootstraps the hub, and sends
 # you the agent's first message — the steps that need agent smarts, not bash.
 hermes plugins enable band
-hermes chat -s add-band
+hermes chat -s add-band < /dev/tty
