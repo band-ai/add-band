@@ -22,7 +22,7 @@ unset BAND_USER_API_KEY
 export BAND_AGENT_ID BAND_API_KEY
 { echo "BAND_AGENT_ID=$BAND_AGENT_ID"; echo "BAND_API_KEY=$BAND_API_KEY"; } >> .env
 mkdir -p data/env && cp .env data/env/env
-claude /add-band 2>/dev/null || cat .claude/skills/add-band/SKILL.md
+claude /add-band < /dev/tty 2>/dev/null || cat .claude/skills/add-band/SKILL.md
 # <<< band:mini
 
 echo "Registered agent $BAND_AGENT_ID. Agent API key written to .env (shown once): $BAND_API_KEY"
