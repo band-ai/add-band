@@ -55,17 +55,6 @@ TARGETS = [
         Path(".claude/skills/add-band/scripts/register-agent.sh"),
     ),
     Target(
-        "hermes-band-platform",
-        SIBLINGS / "hermes-band-platform",
-        Path("scripts/register-agent.sh"),
-    ),
-    # Future shorter repo name, if/when Hermes follows the same naming pattern.
-    Target(
-        "hermes-band",
-        SIBLINGS / "hermes-band",
-        Path("scripts/register-agent.sh"),
-    ),
-    Target(
         "openclaw-band",
         SIBLINGS / "openclaw-band",
         Path("scripts/register-agent.sh"),

@@ -14,16 +14,21 @@ access control — only messages Band delivers reach the agent.
 
 ## Bootstrap
 
-Run on the host where your Hermes gateway runs. The Band web app hands you
-[`bootstrap.sh`](bootstrap.sh) with your key already filled in. The script does only
-the two things bash is uniquely placed to do, then hands off to the agent:
+Run on the host where your Hermes gateway runs. The Band web app gives you a
+`curl … | bash` one-liner and your Band user API key; run it and paste the key when the
+script prompts. The script ([`bootstrap.sh`](bootstrap.sh)) does only the two things
+bash is uniquely placed to do, then hands off to the agent:
 
 1. **Install** the `band` plugin (which ships the `add-band` skill) into the
-   gateway's own uv-managed Python — `uv pip install hermes-band-platform`.
+   gateway's own uv-managed Python from a Git ref. A production PR should switch
+   this to a pinned PyPI install only after `hermes-band-platform` is published
+   and verified on PyPI.
 2. **Mint** a Band agent from your *user* key — read by the package's
-   `register-agent.sh` in a plain shell, so the broad key never reaches the
-   agent's LLM. Only the agent-scoped `BAND_AGENT_ID` + `BAND_API_KEY` are written
-   to the gateway `.env`; then the user key is dropped.
+   temporary bundled `skills/add-band/scripts/register_agent.py` helper run by
+   the gateway Python, so the broad key never reaches the agent's LLM. Only the
+   agent-scoped `BAND_AGENT_ID` + `BAND_API_KEY` are written to the gateway
+   `.env`; then the user key is dropped. Replace the helper with the SDK CLI
+   once `band.cli.register_agent` is published in `band-sdk`.
 3. **Hand off** to `hermes chat -s add-band`. The skill runs the steps that need
    agent smarts rather than bash: it completes plugin setup, wires Band in as a
    communication channel with context isolation, bootstraps the **Hermes Hub**,
@@ -31,14 +36,14 @@ the two things bash is uniquely placed to do, then hands off to the agent:
 
 > **Pre-created agent instead?** Make one at `app.band.ai/agents/new`, save
 > `BAND_AGENT_ID` + `BAND_API_KEY` to the gateway `.env`, and drop the
-> `register-agent.sh` + `unset` lines (keep the `uv pip install` and the
+> `register_agent.py` + `unset` lines (keep the Git-ref `uv pip install` and the
 > `hermes chat -s add-band` hand-off). See [Prereqs](#prereqs).
 
 ## Source
 
 - **Repo:** [`band-ai/hermes-band-platform`](https://github.com/band-ai/hermes-band-platform)
-  — tracks the `main` branch by default; pin a tag/commit via `BAND_HERMES_REF`
-  for a reproducible install.
+  — the bootstrap installs from `BAND_HERMES_REF` (`main` by default while
+  unreleased). Pin a tag/commit for a reproducible install.
 - **Skill:** `hermes_band_platform/skills/add-band/SKILL.md` (also available as
   `hermes /add-band` once the plugin is installed).
 - **Fresh box / non-Hermes agent:** the one-shot install prompt at
@@ -64,6 +69,11 @@ the two things bash is uniquely placed to do, then hands off to the agent:
 
 Full configuration (hub pinning, allowlists, failover) is documented in the
 [plugin README](https://github.com/band-ai/hermes-band-platform#environment-variables).
+
+If you choose Hermes's directory-plugin path instead of the package install path,
+remember that directory plugins do not install Python dependencies. The setup
+flow must prompt to install `band-sdk>=1.0.0,<2.0.0` into the gateway Python and
+show a clear error if `import band` still fails.
 
 ## Verify
 
