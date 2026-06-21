@@ -26,16 +26,18 @@ upstream).
    ```bash
    python3 scripts/check.py
    pytest tests/ -q
+   scripts/local-bootstrap.sh <harness> --print   # preview; drop --print to run it for real
    ```
+   See [TESTING.md](TESTING.md) for the full local-testing workflow.
 4. Add a row to the **Integrations** table in the [root README](README.md).
 
 ## The one rule the web app relies on
 
-Put the user's key behind the literal token **`{{BAND_USER_API_KEY}}`** in
-`bootstrap.sh` — in an env export, a CLI flag, a config write, whatever the harness
-wants. The web app reads the script and string-replaces that token with the user's
-key, so it needs no per-shape logic. `check.py` enforces the token's presence in
-the snippet it shows.
+The web app hands the user a Band **user API key** to copy and a `curl … | bash`
+one-liner — it does **not** edit the script. So every `bootstrap.sh` must **acquire the
+key itself**: when `BAND_USER_API_KEY` is unset, prompt for it (read from `/dev/tty`,
+since `curl … | bash` makes stdin the script), and otherwise accept it from the
+environment. `check.py` enforces that the snippet references `BAND_USER_API_KEY`.
 
 ### The minimal copy-paste version
 
@@ -47,8 +49,8 @@ not a separate file:
   (multiple regions allowed; they concatenate in file order).
 
 Either way the mini is stripped of comments, shebangs, and blank lines, and capped
-at **15 command lines** so it fits the block. The `{{BAND_USER_API_KEY}}` token must
-land inside it. Preview exactly what ships with `python3 scripts/check.py --mini <harness>`.
+at **25 command lines** so it fits the block. The key handling (the `BAND_USER_API_KEY`
+prompt) must land inside it. Preview exactly what ships with `python3 scripts/check.py --mini <harness>`.
 
 ## How the catalog is validated
 
@@ -56,7 +58,7 @@ land inside it. Preview exactly what ships with `python3 scripts/check.py --mini
 
 - **participating** — has a `manifest.yaml` + `bootstrap.sh`. Validated:
   required manifest fields, a valid `status`, a `bootstrap.sh` whose mini snippet
-  carries the `{{BAND_USER_API_KEY}}` placeholder and fits the 15-line cap, and
+  handles `BAND_USER_API_KEY` (prompt or pre-set env) and fits the 25-line cap, and
   (via the tests) `bash -n` syntax.
 - **stub** — README-only, no snippet yet. Must be listed in `STUB_ONLY` in
   `scripts/check.py`, so it's a deliberate opt-out, not a silent gap.
@@ -94,8 +96,8 @@ Every integration README answers the same five things, in order:
 - **Pin refs in the snippet.** Clone a tag/commit, not a moving branch, so a
   copied snippet keeps working.
 - **Fail loud.** Prefer `set -e` and an early check for the harness binary.
-- **Never require pasting a secret into a command.** Use the `{{BAND_USER_API_KEY}}`
-  placeholder; the user's key arrives via the web app or their environment.
+- **Never bake a secret into the snippet.** Prompt for `BAND_USER_API_KEY` from
+  `/dev/tty` when it's unset, or accept it pre-set in the environment.
 
 ## Going full CLI later
 

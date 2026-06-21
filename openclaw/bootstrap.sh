@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -e
-export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # the web app fills this in
+# Get your Band user API key: paste it at the prompt (pre-set BAND_USER_API_KEY to skip).
+if [ -z "${BAND_USER_API_KEY:-}" ]; then
+  [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_USER_API_KEY and re-run" >&2; exit 1; }
+  printf 'Paste your Band user API key: ' >/dev/tty
+  IFS= read -r -s BAND_USER_API_KEY </dev/tty
+  printf '\n' >/dev/tty
+fi
+[ -n "${BAND_USER_API_KEY:-}" ] || { echo "Band user API key required" >&2; exit 1; }
+export BAND_USER_API_KEY
 rm -rf /tmp/ocb && git clone --depth 1 --branch main https://github.com/band-ai/openclaw-band /tmp/ocb
 export BAND_AGENT_NAME="${BAND_AGENT_NAME:-MyOpenClawAgent}"
 export BAND_AGENT_DESCRIPTION="${BAND_AGENT_DESCRIPTION:-OpenClaw agent on Band}"

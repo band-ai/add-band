@@ -6,9 +6,18 @@
 # context isolation, bootstraps the hub, and sends you the agent's first message.
 set -euo pipefail
 
-export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # the web app fills this in
 command -v uv >/dev/null || { echo "install uv first: https://docs.astral.sh/uv/"; exit 1; }
 command -v hermes >/dev/null || { echo "install hermes first"; exit 1; }
+
+# Get your Band user API key: paste it at the prompt (pre-set BAND_USER_API_KEY to skip).
+if [ -z "${BAND_USER_API_KEY:-}" ]; then
+  [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_USER_API_KEY and re-run" >&2; exit 1; }
+  printf 'Paste your Band user API key: ' >/dev/tty
+  IFS= read -r -s BAND_USER_API_KEY </dev/tty
+  printf '\n' >/dev/tty
+fi
+[ -n "${BAND_USER_API_KEY:-}" ] || { echo "Band user API key required" >&2; exit 1; }
+export BAND_USER_API_KEY
 
 # Install the band platform (it ships the add-band skill) into the gateway's own Python.
 hermes_python="$(hermes --version 2>&1 | sed -n 's/^Project: //p')/venv/bin/python"

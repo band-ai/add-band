@@ -8,8 +8,8 @@ Every top-level integration folder is in exactly one of two states:
   - **stub** — README-only, no snippet yet. Listed in :data:`STUB_ONLY` so it is
     a deliberate opt-out rather than a silent gap.
 
-Bootstrap snippets are *not* generated and have no common shape — Hermes clones a
-plugin repo and hands a skill to the gateway; OpenClaw runs a couple of curls and
+Bootstrap snippets are *not* generated and have no common shape — Hermes installs a
+plugin into the gateway and hands off to a setup skill; OpenClaw clones a repo and runs
 the openclaw CLI. So this script validates structure, not content.
 
 The minimal copy-paste version (what the web app shows in a small code block) is
@@ -44,16 +44,17 @@ STUB_ONLY: set[str] = set()
 REQUIRED_MANIFEST_FIELDS = {"name", "repo", "connects_via", "status", "summary"}
 VALID_STATUSES = {"available", "planned"}
 
-# The web app substitutes the user's key for this token, regardless of how the
-# snippet passes it (env export, CLI flag, config write). Must sit inside the mini
-# projection — that's the part the web app shows and fills in.
-KEY_PLACEHOLDER = "{{BAND_USER_API_KEY}}"
+# Every bootstrap obtains the Band user API key itself — it prompts for it (reading from
+# /dev/tty, since `curl ... | bash` makes stdin the script) or accepts a pre-set
+# BAND_USER_API_KEY from the environment. We assert the variable name appears in the mini
+# the web app serves; the web app hands the user a key to paste, it does not edit the script.
+KEY_VAR = "BAND_USER_API_KEY"
 
 # Markers bounding the minimal copy-paste snippet inside bootstrap.sh. Optional:
 # a script with no markers uses its whole (comment-stripped) body as the mini.
 MINI_START = "# >>> band:mini"
 MINI_END = "# <<< band:mini"
-MINI_MAX_LINES = 15  # accumulative, across all regions; counts command lines only
+MINI_MAX_LINES = 25  # accumulative, across all regions; counts command lines only
 
 
 def integration_dirs() -> set[str]:
@@ -189,10 +190,10 @@ def validate_integration(name: str) -> list[str]:
                 f"(wrap the copy-paste subset in '{MINI_START}' / '{MINI_END}' markers)"
             )
 
-    if mini and KEY_PLACEHOLDER not in "\n".join(mini):
+    if mini and KEY_VAR not in "\n".join(mini):
         problems.append(
-            f"{name}: '{KEY_PLACEHOLDER}' placeholder must appear in the mini snippet "
-            f"(the part the web app fills in)"
+            f"{name}: the mini snippet must handle {KEY_VAR} "
+            f"(prompt for it, or accept it from the environment)"
         )
     return problems
 

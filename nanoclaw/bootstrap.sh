@@ -10,7 +10,15 @@
 set -e
 
 # >>> band:mini
-export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # the web app fills this in
+# Get your Band user API key: paste it at the prompt (pre-set BAND_USER_API_KEY to skip).
+if [ -z "${BAND_USER_API_KEY:-}" ]; then
+  [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_USER_API_KEY and re-run" >&2; exit 1; }
+  printf 'Paste your Band user API key: ' >/dev/tty
+  IFS= read -r -s BAND_USER_API_KEY </dev/tty
+  printf '\n' >/dev/tty
+fi
+[ -n "${BAND_USER_API_KEY:-}" ] || { echo "Band user API key required" >&2; exit 1; }
+export BAND_USER_API_KEY
 export NANOCLAW_HOME="${NANOCLAW_HOME:-$HOME/nanoclaw-band}"
 export NANOCLAW_REPO="${NANOCLAW_REPO:-https://github.com/band-ai/nanoclaw-band}"
 if [ -d "$NANOCLAW_HOME/.git" ]; then if git -C "$NANOCLAW_HOME" remote get-url upstream >/dev/null 2>&1; then git -C "$NANOCLAW_HOME" remote set-url upstream "$NANOCLAW_REPO"; else git -C "$NANOCLAW_HOME" remote add upstream "$NANOCLAW_REPO"; fi; git -C "$NANOCLAW_HOME" pull --ff-only upstream main; else git clone --depth 1 --branch main "$NANOCLAW_REPO" "$NANOCLAW_HOME"; fi

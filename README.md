@@ -25,11 +25,12 @@ so it can't go stale.
 
 ## Quickstart
 
-Connect a **Hermes** agent (other harnesses [below](#integrations)). Get your snippet
-from the Band web app — it fills in your key — and paste it on the host where your
-gateway runs. The exact script is [`hermes/bootstrap.sh`](hermes/bootstrap.sh).
+Connect a **Hermes** agent (other harnesses [below](#integrations)). The Band web app
+gives you a `curl … | bash` one-liner and your Band user API key; run it on the host
+where your gateway runs and paste the key when prompted. The exact script is
+[`hermes/bootstrap.sh`](hermes/bootstrap.sh).
 
-**One paste → one @mention → a connected agent.** The snippet registers your agent and
+**One run → one @mention → a connected agent.** The snippet registers your agent and
 hands off to the `add-band` skill, which installs and verifies everything; then you
 @mention the agent in a Band room and a reply means you're live. → [Hermes guide](hermes/)
 
@@ -65,8 +66,8 @@ layers:
 Each integration ships a **hand-authored `bootstrap.sh`** (committed) plus a
 `manifest.yaml` of metadata. Bootstraps don't share a shape — Hermes hands a
 skill to its gateway; OpenClaw runs a couple of `curl`s and the `openclaw` CLI —
-so they aren't generated. The web app reads the script and swaps in your key at a
-`{{BAND_USER_API_KEY}}` placeholder; `scripts/check.py` keeps every integration valid.
+so they aren't generated. The web app serves the script and gives you a key to paste
+when it prompts; `scripts/check.py` keeps every integration valid.
 
 <details>
 <summary>Repo layout</summary>
@@ -74,7 +75,9 @@ so they aren't generated. The web app reads the script and swaps in your key at 
 ```
 README.md            ← this index (user-facing)
 CONTRIBUTING.md      ← add an integration · validation · roadmap
+TESTING.md           ← test a bootstrap change locally
 scripts/check.py     ← validates the catalog (CI gate)
+scripts/local-bootstrap.sh ← run a bootstrap locally, the curl|bash way
 tests/               ← drift + per-integration tests (pytest, thenvoi style)
 _template/           ← copy to start a new integration
 <harness>/
