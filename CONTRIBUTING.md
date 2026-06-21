@@ -9,9 +9,9 @@ An integration is one folder per harness:
   README.md        ← the human guide (the five sections below)
 ```
 
-**Bootstraps don't share a shape, so they aren't generated.** Hermes clones a
-plugin repo and hands a setup skill to its gateway; OpenClaw runs a couple of
-curls and the `openclaw` CLI. You author `bootstrap.sh` in whatever shape fits —
+**Bootstraps don't share a shape, so they aren't generated.** Hermes installs a
+plugin into its gateway and hands off to a setup skill; OpenClaw clones a repo and
+runs the `openclaw` CLI. You author `bootstrap.sh` in whatever shape fits —
 just keep it thin (fetch the real artifact and hand off; the heavy lifting lives
 upstream).
 
@@ -75,8 +75,8 @@ Every integration README answers the same five things, in order:
 
 1. **What it connects** — one paragraph: which Band capabilities the agent gets.
 2. **Bootstrap** — where and how to run it; link to `bootstrap.sh`, don't paste a
-   copy of it. The web app serves the real snippet with the key filled in, and a
-   duplicate in the README only drifts.
+   copy of it. The web app serves the real snippet and the user pastes their key when
+   it prompts, so a duplicate in the README only drifts.
 3. **Source** — the upstream repo where the real artifact lives, plus its path.
 4. **Prereqs** — runtime/version requirements and the Band credentials needed.
 5. **Verify** — the concrete signal that it worked ("you should see…").
@@ -108,6 +108,6 @@ machine-readable; what's left to build:
 - **A registry / machine-readable index** the CLI lists from, instead of the
   Markdown table (which would be generated from it).
 - **The CLI runs the integration's `bootstrap.sh`** (or a structured form of it),
-  prompting for `{{BAND_USER_API_KEY}}` and the harness's prereqs.
+  supplying `BAND_USER_API_KEY` and checking the harness's prereqs.
 - **Schema + link validation in CI**, extending `check.py` so a bad manifest
   can't ship.

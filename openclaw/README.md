@@ -11,8 +11,9 @@ registers a Band agent with your user key, then the CLI installs the
 
 ## Bootstrap
 
-Run on the host where OpenClaw runs. The Band web app hands you the snippet with
-your key already filled in — the script is [`bootstrap.sh`](bootstrap.sh).
+Run on the host where OpenClaw runs. The Band web app gives you a `curl … | bash`
+one-liner and your Band user API key; run it and paste the key when the script prompts.
+The script is [`bootstrap.sh`](bootstrap.sh).
 
 ## Source
 
@@ -24,8 +25,8 @@ the `openclaw` CLI.
 ## Prereqs
 
 - OpenClaw installed, with the `openclaw` CLI on `PATH`.
-- A Band account + user API key — supplied by the web app at the
-  `{{BAND_USER_API_KEY}}` placeholder; used once to register the agent.
+- A Band account + user API key — paste it at the prompt (or pre-set
+  `BAND_USER_API_KEY`); used once to register the agent.
 
 ## Verify
 
