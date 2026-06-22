@@ -20,12 +20,13 @@
 #   eval "$(scripts/register-agent.sh)"      # sets BAND_AGENT_ID + BAND_AGENT_API_KEY
 #
 # Env knobs: BAND_BASE_URL (default https://app.band.ai),
-#            BAND_AGENT_NAME, BAND_AGENT_DESCRIPTION.
+#            BAND_AGENT_NAME, BAND_AGENT_DESCRIPTION, BAND_USER_AGENT.
 set -euo pipefail
 
 base="${BAND_BASE_URL:-https://app.band.ai}"; base="${base%/}"
 name="${BAND_AGENT_NAME:-Band agent}"
 desc="${BAND_AGENT_DESCRIPTION:-Agent on Band}"
+ua="${BAND_USER_AGENT:-Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36}"
 # Read the Band API key: prompt on /dev/tty when unset (curl|bash makes stdin the
 # script), or accept a pre-set BAND_API_KEY. The prompt writes to /dev/tty, not
 # stdout, so it never pollutes the eval-able output above.
@@ -41,6 +42,9 @@ req_body=$(printf '{"agent":{"name":"%s","description":"%s"}}' "$name" "$desc")
 
 # Only the secret X-API-Key header goes through stdin (-K -), never argv.
 resp=$(curl -sS -X POST "$base/api/v1/me/agents/register" \
+  -H "User-Agent: $ua" \
+  -H "Accept: application/json, text/plain, */*" \
+  -H "Accept-Language: en-US,en;q=0.9" \
   -H "Content-Type: application/json" -d "$req_body" -w $'\n%{http_code}' -K - <<EOF
 header = "X-API-Key: $BAND_API_KEY"
 EOF

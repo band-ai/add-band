@@ -28,7 +28,9 @@ bash is uniquely placed to do, then hands off to the agent:
    the gateway Python, so the broad key never reaches the agent's LLM. Only the
    agent-scoped `BAND_AGENT_ID` + `BAND_AGENT_API_KEY` are written to the gateway
    `.env`; then the key is dropped. Replace the helper with the SDK CLI
-   once `band.cli.register_agent` is published in `band-sdk`.
+   once `band.cli.register_agent` is published in `band-sdk`, but keep the
+   helper's browser-like registration headers in that CLI path to avoid
+   Cloudflare 1010 on sparse script clients.
 3. **Hand off** to `hermes chat -s add-band`. The skill runs the steps that need
    agent smarts rather than bash: it completes plugin setup, wires Band in as a
    communication channel with context isolation, bootstraps the **Hermes Hub**,
@@ -48,6 +50,20 @@ bash is uniquely placed to do, then hands off to the agent:
   `hermes /add-band` once the plugin is installed).
 - **Fresh box / non-Hermes agent:** the one-shot install prompt at
   [`docs/INSTALL-PROMPT.md`](https://github.com/band-ai/hermes-band-platform/blob/main/docs/INSTALL-PROMPT.md).
+
+## Local testing
+
+To test plugin edits live, copy `bootstrap.sh` to a **git-ignored**
+`bootstrap.local.sh` and swap its install line for an editable install from your
+local clone. Run it the `curl … | bash` way (from the `add-band` repo root, with
+`HERMES_HOME` exported to isolate the test):
+
+```bash
+curl -fsSL "file://$PWD/hermes/bootstrap.local.sh" | bash
+```
+
+`scripts/local-bootstrap.sh hermes` also prefers `bootstrap.local.sh` when present.
+Full end-to-end guide: [`TESTING.md`](TESTING.md).
 
 ## Prereqs
 

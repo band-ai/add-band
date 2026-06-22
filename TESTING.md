@@ -40,6 +40,18 @@ scripts/local-bootstrap.sh <harness> --curl   # curl -fsSL "file://…/bootstrap
 scripts/local-bootstrap.sh <harness> --print  # dry run: print the script, run nothing
 ```
 
+### Local override: `bootstrap.local.sh`
+
+To test edits the shipped script shouldn't carry — say an **editable install from a
+local clone** instead of the Git-ref install — copy `bootstrap.sh` to
+`<harness>/bootstrap.local.sh` and change just that line. It's **git-ignored**
+(`*/bootstrap.local.sh`) so it never ships. `scripts/local-bootstrap.sh <harness>`
+prefers it automatically when present; or curl it directly (run from the repo root):
+
+```bash
+curl -fsSL "file://$PWD/<harness>/bootstrap.local.sh" | bash
+```
+
 Or by hand against your working copy:
 
 ```bash

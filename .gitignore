@@ -5,3 +5,6 @@ __pycache__/
 
 # Claude Code local state & worktrees
 .claude/
+
+# Local-only bootstrap variants (e.g. editable installs for live testing) — never shipped
+*/bootstrap.local.sh

@@ -39,7 +39,15 @@ mkdir -p "$HERMES_HOME"
 
 # 0c. Make it a *working agent* — the skill runs as a Hermes agent (model + auth + terminal tool).
 hermes setup            # full wizard (model, auth, tools)…
+# hermes model          # …or just the model step — pick OpenAI as the provider, choose a model.
 # hermes setup --portal # …or one Nous Portal OAuth login that covers the model.
+
+# 0c-alt. (Optional) Give the agent a baseline comms channel — e.g. Telegram — *before* Band,
+#         to prove the gateway works end to end on a channel you control. Create a bot with
+#         @BotFather, then add only Telegram creds to THIS home's .env (the gateway activates
+#         any platform whose creds are present, so leaving the others unset keeps it Telegram-only):
+#   printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ALLOWED_USERS=%s\n' "<token>" "<your-user-id>" >> "$HERMES_HOME/.env"
+#   hermes gateway setup && hermes gateway start   # then message the bot to confirm it replies.
 
 # 0d. Confirm the gateway interpreter is 3.11–3.13, then that the agent actually talks.
 hermes --version
@@ -65,6 +73,16 @@ export BAND_HERMES_REF="${BAND_HERMES_REF:-main}"      # use a tag/commit for re
 scripts/local-bootstrap.sh hermes
 ```
 
+> **Testing live plugin edits?** Copy `hermes/bootstrap.sh` to a **git-ignored**
+> `hermes/bootstrap.local.sh` and swap its install line for an editable install from
+> your local clone (`uv pip install --python "$hermes_python" -e "$HOME/path/to/hermes-band-platform"`).
+> `scripts/local-bootstrap.sh hermes` prefers it automatically, or curl it directly —
+> run from the repo root, with `HERMES_HOME` exported in this shell:
+>
+> ```bash
+> curl -fsSL "file://$PWD/hermes/bootstrap.local.sh" | bash
+> ```
+
 **What you'll see, in order:**
 
 1. The bootstrap installs the plugin package from the Git ref into the gateway
@@ -72,7 +90,10 @@ scripts/local-bootstrap.sh hermes
    a pinned PyPI package only after PyPI is published and verified.
 2. The bundled `scripts/register_agent.py` helper mints the agent and Hermes's
    env writer saves only `BAND_AGENT_ID` + `BAND_AGENT_API_KEY` to `$HERMES_HOME/.env`;
-   the Band API key is then unset. Confirm: `grep -E 'BAND_AGENT_ID|BAND_AGENT_API_KEY' "$HERMES_HOME/.env"`.
+   the Band API key is then unset. The helper sends browser-like registration
+   headers because sparse script fingerprints can trip Cloudflare 1010 at
+   `app.band.ai`; preserve that behavior when replacing it with the SDK CLI.
+   Confirm: `grep -E 'BAND_AGENT_ID|BAND_AGENT_API_KEY' "$HERMES_HOME/.env"`.
 3. The bootstrap enables the plugin (CLI or config fallback) and opens
    `hermes chat -s add-band`, which follows the skill to restart the gateway,
    verify the hub, and prove the round trip.

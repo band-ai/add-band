@@ -30,7 +30,10 @@ uv pip install --python "$hermes_python" "hermes-band-platform @ git+https://git
 
 # Mint the Band agent using the temporary Python helper bundled with the
 # add-band skill. Once band-sdk publishes `band.cli.register_agent`, replace this
-# with the SDK CLI and remove the bundled helper.
+# with the SDK CLI and remove the bundled helper. The SDK CLI must preserve the
+# helper's browser-like registration headers (User-Agent, Accept,
+# Accept-Language), otherwise app.band.ai can Cloudflare-1010 sparse script
+# fingerprints even when the key is valid.
 skill_dir="$("$hermes_python" -c 'import pathlib, hermes_band_platform; print(pathlib.Path(hermes_band_platform.__path__[0]) / "skills" / "add-band")')"
 "$hermes_python" "$skill_dir/scripts/register_agent.py"
 unset BAND_API_KEY

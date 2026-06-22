@@ -28,7 +28,13 @@ case "$harness" in
   "") usage; exit 2 ;;
 esac
 
+# Prefer a git-ignored bootstrap.local.sh if present (local edits / editable installs),
+# else the shipping bootstrap.sh.
 script="$root/$harness/bootstrap.sh"
+if [ -f "$root/$harness/bootstrap.local.sh" ]; then
+  script="$root/$harness/bootstrap.local.sh"
+  echo "using local override: $harness/bootstrap.local.sh" >&2
+fi
 [ -f "$script" ] || { echo "no bootstrap at $script (expected $harness/bootstrap.sh)" >&2; exit 1; }
 
 case "$mode" in
