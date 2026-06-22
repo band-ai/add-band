@@ -89,11 +89,12 @@ scripts/local-bootstrap.sh hermes
    Python, which also installs `band-sdk`. A production PR should switch this to
    a pinned PyPI package only after PyPI is published and verified.
 2. The bundled `scripts/register_agent.py` helper mints the agent and Hermes's
-   env writer saves only `BAND_AGENT_ID` + `BAND_AGENT_API_KEY` to `$HERMES_HOME/.env`;
-   the Band API key is then unset. The helper sends browser-like registration
-   headers because sparse script fingerprints can trip Cloudflare 1010 at
-   `app.band.ai`; preserve that behavior when replacing it with the SDK CLI.
-   Confirm: `grep -E 'BAND_AGENT_ID|BAND_AGENT_API_KEY' "$HERMES_HOME/.env"`.
+   env writer saves only `BAND_AGENT_ID` + `BAND_API_KEY` (the agent-scoped key,
+   replacing your broad key of the same name) to `$HERMES_HOME/.env`; the broad
+   shell value is then unset. The helper sends browser-like registration headers
+   because sparse script fingerprints can trip Cloudflare 1010 at `app.band.ai`;
+   preserve that behavior when replacing it with the SDK CLI.
+   Confirm: `grep -E 'BAND_AGENT_ID|BAND_API_KEY' "$HERMES_HOME/.env"`.
 3. The bootstrap enables the plugin (CLI or config fallback) and opens
    `hermes chat -s add-band`, which follows the skill to restart the gateway,
    verify the hub, and prove the round trip.
@@ -134,7 +135,7 @@ grep BAND_HUB_ROOM "$HERMES_HOME/.env"   # a non-empty UUID ⇒ hub created
 
 ## Pass/fail checklist
 
-- [ ] `register_agent.py` → `BAND_AGENT_ID` + `BAND_AGENT_API_KEY` saved in `$HERMES_HOME/.env`; Band API key gone
+- [ ] `register_agent.py` → `BAND_AGENT_ID` + `BAND_API_KEY` (agent-scoped) saved in `$HERMES_HOME/.env`; broad Band key gone from the shell
 - [ ] `verify_install.py` → `success: true` (package + sdk + entry point/manifest + enabled + creds)
 - [ ] `verify_gateway.py` → hub present, Band connection signals, no failure signal
 - [ ] `BAND_HUB_ROOM` is a non-empty UUID

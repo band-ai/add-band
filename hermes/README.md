@@ -25,9 +25,10 @@ bash is uniquely placed to do, then hands off to the agent:
    and verified on PyPI.
 2. **Mint** a Band agent from your Band API key — read by the package's
    temporary bundled `skills/add-band/scripts/register_agent.py` helper run by
-   the gateway Python, so the broad key never reaches the agent's LLM. Only the
-   agent-scoped `BAND_AGENT_ID` + `BAND_AGENT_API_KEY` are written to the gateway
-   `.env`; then the key is dropped. Replace the helper with the SDK CLI
+   the gateway Python, so the broad key never reaches the agent's LLM. The
+   agent-scoped `BAND_AGENT_ID` + `BAND_API_KEY` it returns **replace** your key
+   in the gateway `.env` (same `BAND_API_KEY` name, now narrowly scoped); the
+   broad shell value is then dropped. Replace the helper with the SDK CLI
    once `band.cli.register_agent` is published in `band-sdk`, but keep the
    helper's browser-like registration headers in that CLI path to avoid
    Cloudflare 1010 on sparse script clients.
@@ -37,7 +38,7 @@ bash is uniquely placed to do, then hands off to the agent:
    and sends you the agent's first message.
 
 > **Pre-created agent instead?** Make one at `app.band.ai/agents/new`, save
-> `BAND_AGENT_ID` + `BAND_AGENT_API_KEY` to the gateway `.env`, and drop the
+> `BAND_AGENT_ID` + `BAND_API_KEY` to the gateway `.env`, and drop the
 > `register_agent.py` + `unset` lines (keep the Git-ref `uv pip install` and the
 > `hermes chat -s add-band` hand-off). See [Prereqs](#prereqs).
 
@@ -75,13 +76,12 @@ Full end-to-end guide: [`TESTING.md`](TESTING.md).
     external agents — the bootstrap registers an agent and saves only the returned
     agent-scoped credentials.
   - **Manual:** a pre-created external agent from `app.band.ai/agents/new`, giving
-    you `BAND_AGENT_ID` + `BAND_AGENT_API_KEY`.
+    you `BAND_AGENT_ID` + `BAND_API_KEY` to set directly.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `BAND_AGENT_ID` | ✅ (or via registration) | Band agent ID (UUID). |
-| `BAND_AGENT_API_KEY` | ✅ (or via registration) | Band agent API key — authenticates the link. |
-| `BAND_API_KEY` | optional | Band API key for one-step agent registration; removed after. |
+| `BAND_API_KEY` | ✅ | Your Band API key — paste it at the prompt. The bootstrap registers an agent and **replaces** this in the gateway `.env` with the agent-scoped key of the same name, then drops the broad shell value (it never reaches the LLM). For a pre-created agent, set its agent key here directly. |
+| `BAND_AGENT_ID` | set by registration | Band agent ID (UUID). Written by the bootstrap; set it yourself only for a pre-created agent. |
 
 Full configuration (hub pinning, allowlists, failover) is documented in the
 [plugin README](https://github.com/band-ai/hermes-band-platform#environment-variables).
