@@ -7,7 +7,9 @@
 # agent-scoped credentials into the cloned checkout, then hands off to the
 # fork's skill. The skill can focus on walking the user through the remaining
 # NanoClaw-side connection steps.
-set -e
+set -euo pipefail
+
+command -v git >/dev/null || { echo "install git first"; exit 1; }
 
 # Get your Band API key: paste it at the prompt (pre-set BAND_API_KEY to skip).
 if [ -z "${BAND_API_KEY:-}" ]; then
@@ -24,11 +26,15 @@ if [ -d "$NANOCLAW_HOME/.git" ]; then if git -C "$NANOCLAW_HOME" remote get-url 
 cd "$NANOCLAW_HOME"
 export BAND_AGENT_NAME="${BAND_AGENT_NAME:-MyNanoClawAgent}"
 export BAND_AGENT_DESCRIPTION="${BAND_AGENT_DESCRIPTION:-NanoClaw agent on Band}"
+# register-agent.sh prints `BAND_AGENT_ID=…` / `BAND_AGENT_API_KEY=…` on success.
+# `eval "$(…)"` does not trip set -e if the helper fails, so assert the creds landed.
 eval "$(bash .claude/skills/add-band/scripts/register-agent.sh)"
+[ -n "${BAND_AGENT_ID:-}" ] && [ -n "${BAND_AGENT_API_KEY:-}" ] || { echo "agent registration failed (no credentials returned)" >&2; exit 1; }
 unset BAND_API_KEY
 export BAND_AGENT_ID BAND_AGENT_API_KEY
 { echo "BAND_AGENT_ID=$BAND_AGENT_ID"; echo "BAND_AGENT_API_KEY=$BAND_AGENT_API_KEY"; } >> .env
 mkdir -p data/env && cp .env data/env/env
-claude /add-band < /dev/tty 2>/dev/null || cat .claude/skills/add-band/SKILL.md
+echo "Registered agent $BAND_AGENT_ID. Agent credentials written to .env."
 
-echo "Registered agent $BAND_AGENT_ID. Agent API key written to .env (shown once): $BAND_AGENT_API_KEY"
+# Hand off to the fork's skill; print it if the claude CLI isn't installed.
+if command -v claude >/dev/null; then claude /add-band < /dev/tty; else cat .claude/skills/add-band/SKILL.md; fi

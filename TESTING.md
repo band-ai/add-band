@@ -70,5 +70,7 @@ handy when you'd rather not exercise the `/dev/tty` path.
 Run against a throwaway home/config so your everyday install is untouched (Hermes, for
 instance, honors `HERMES_HOME` — see [`hermes/TESTING.md`](hermes/TESTING.md)). Afterward,
 delete the test agent at `app.band.ai` and rotate/revoke the test **API key**. The
-bootstraps `unset BAND_API_KEY` once the agent is registered, so the broad key
-doesn't linger in your shell.
+bootstraps `unset BAND_API_KEY` once the agent is registered, but that only clears it
+inside the script's own shell — if you pre-set the key with `export BAND_API_KEY=…`
+in your shell (or the `export … && curl … | bash` one-liner), it still lingers in the
+parent shell, so `unset BAND_API_KEY` there yourself.
