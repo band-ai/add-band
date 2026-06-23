@@ -253,9 +253,15 @@ __pycache__/
 
 Skip for `claude_sdk`.
 
-AskUserQuestion (single-select):
-- **I'll add it to the .env myself** — show the path `<out>/.env` and which line to fill.
-- **Add it for me now** — ask for the key and edit the .env in place.
+AskUserQuestion (single-select, the question itself):
+- **I'll add it to the .env myself** — show the path `<out>/.env` and which line to fill, then stop.
+- **Add it for me now** — proceed to the next paragraph.
+
+If the user picks **Add it for me now**, do NOT call `AskUserQuestion` again for the key itself — `AskUserQuestion` requires ≥2 options and the key is a free-form value. Instead, send a plain chat message like:
+
+> Please paste your `<LLM_KEY_NAME>` here (e.g. `sk-ant-…` for Anthropic, `sk-…` for OpenAI) and I'll write it into `<out>/.env`.
+
+Wait for the user's next message, then edit the `<LLM_KEY_NAME>=` line in `<out>/.env` to include the value.
 
 ### Step 9 — Ask who runs the agents
 
