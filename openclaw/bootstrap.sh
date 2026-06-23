@@ -9,7 +9,9 @@ set -euo pipefail
 command -v git >/dev/null || { echo "install git first"; exit 1; }
 command -v openclaw >/dev/null || { echo "install openclaw first (the 'openclaw' CLI must be on PATH)"; exit 1; }
 
-# Get your Band API key: paste it at the prompt (pre-set BAND_API_KEY to skip).
+# Get your Band API key: paste it at the prompt (pre-set BAND_API_KEY to skip;
+# BAND_USER_API_KEY is honored as an alias).
+: "${BAND_API_KEY:=${BAND_USER_API_KEY:-}}"
 if [ -z "${BAND_API_KEY:-}" ]; then
   [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_API_KEY and re-run" >&2; exit 1; }
   printf 'Paste your Band API key: ' >/dev/tty

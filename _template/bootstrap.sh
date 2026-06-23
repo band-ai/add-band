@@ -13,7 +13,9 @@
 # so keep it thin and readable.
 set -e
 
-# Get the Band API key: prompt for it (or accept a pre-set BAND_API_KEY).
+# Get the Band API key: prompt for it (or accept a pre-set BAND_API_KEY,
+# also honoring BAND_USER_API_KEY as an alias).
+: "${BAND_API_KEY:=${BAND_USER_API_KEY:-}}"
 if [ -z "${BAND_API_KEY:-}" ]; then
   [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_API_KEY and re-run" >&2; exit 1; }
   printf 'Paste your Band API key: ' >/dev/tty
