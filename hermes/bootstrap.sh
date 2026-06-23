@@ -38,7 +38,6 @@ skill_dir="$("$hermes_python" -c 'import pathlib, hermes_band_platform; print(pa
 "$hermes_python" "$skill_dir/scripts/register_agent.py"
 unset BAND_API_KEY
 
-# Enable the plugin, then hand off the remaining setup to the add-band skill.
 # `hermes plugins enable` only sees directory plugins, not entry-point packages
 # like band, so it prints a benign "not installed or bundled" on stdout and fails;
 # silence both streams and let the config-write fallback enable it. (When the CLI
