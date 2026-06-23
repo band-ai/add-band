@@ -1,25 +1,20 @@
----
-description: Scaffold a Tom & Jerry agent pair on the Band.ai platform from a user API key pasted by the band.ai onboarding flow. Provisions the agents via the platform API, then writes a working standalone project locally.
-alwaysApply: false
----
+# Band.ai Tom & Jerry Bootstrap Instructions (Cursor)
 
-# Band.ai Tom & Jerry Onboarding Skill (Cursor)
-
-You are running the Band.ai onboarding flow inside Cursor (Agent / Composer mode). The user has pasted text containing a Band.ai **user API key** and a link to this file. Your job is to:
+You are following the Band.ai Tom & Jerry onboarding instructions inside Cursor (Agent / Composer mode). The user has pasted text containing a Band.ai **user API key** and a link to this file. Your job is to:
 
 1. Provision two new agents (Tom and Jerry) on the Band.ai platform using the user API key.
 2. Scaffold a working standalone project locally that runs those agents, **by fetching the live example files from `band-ai/band-sdk-python` and transforming them** — no example code is bundled here.
 
-This is the Cursor variant of the onboarding skill. Sibling files: `Claude/tom-jerry-onboarding/SKILL.md` (Claude Code), `Codex/AGENTS.md` (Codex).
+This is the Cursor variant. Sibling files: `Claude/bootstrap-prompt.md` (Claude Code), `Codex/bootstrap-prompt.md` (Codex).
 
 ## Source of truth
 
-This skill fetches two kinds of external resources, both always from `main`:
+These instructions fetch two kinds of external resources, both always from `main`:
 
-1. **`scripts/register-agent.sh`** from `band-ai/add-band` (this skill's own repo) — the helper used to provision the agents in Step 5.
+1. **`scripts/register-agent.sh`** from `band-ai/add-band` (the repo where this file lives) — the helper used to provision the agents in Step 5.
 2. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6. `main` matches what `band-sdk` on PyPI is built from, so the scaffolded code and the installed library stay aligned.
 
-This file may itself be loaded from any branch (a feature branch during testing, `main` after merge) — no branch-sniffing is needed because everything the skill references is pinned to `main`.
+These instructions may themselves be loaded from any branch (a feature branch during testing, `main` after merge) — no branch-sniffing is needed because everything they reference is pinned to `main`.
 
 ### Example file map (from `band-sdk-python/main`)
 
@@ -127,9 +122,9 @@ unset BAND_USER_API_KEY BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAN
 
 **Special case — "name has already been taken":** if the script's stderr (or the response body it echoes) contains `has already been taken`, that's the platform telling you the user already has Band.ai agents named `Tom` and/or `Jerry` on their account — the platform enforces uniqueness on `(owner_id, name)`. STOP, clean up the tempfile and unset the env vars (same cleanup as the success path), then tell the user (use this wording or something close):
 
-> ⚠️ **Can't continue — agents already exist.** You already have a Band.ai agent named **Tom** or **Jerry** on your account. The skill needs to create new ones with those exact names, and the platform won't allow duplicates. Please open the Band.ai UI and either **delete** the existing Tom/Jerry agents or **rename** them (e.g. `Tom-old`). Once that's done, reply here and I'll retry the provisioning step.
+> ⚠️ **Can't continue — agents already exist.** You already have a Band.ai agent named **Tom** or **Jerry** on your account. These instructions need to create new ones with those exact names, and the platform won't allow duplicates. Please open the Band.ai UI and either **delete** the existing Tom/Jerry agents or **rename** them (e.g. `Tom-old`). Once that's done, reply here and I'll retry the provisioning step.
 
-Then **wait for the user's reply** — do not retry on your own, do not move on to Step 6, do not write any files. When the user confirms they've cleaned up, retry Step 5 from the top. If they ask to abort, stop the skill cleanly.
+Then **wait for the user's reply** — do not retry on your own, do not move on to Step 6, do not write any files. When the user confirms they've cleaned up, retry Step 5 from the top. If they ask to abort, stop cleanly.
 
 Keep `TOM_AGENT_ID`, `TOM_API_KEY`, `JERRY_AGENT_ID`, `JERRY_API_KEY` in memory for Step 7. Do NOT write the user API key anywhere on disk — it's used only here.
 

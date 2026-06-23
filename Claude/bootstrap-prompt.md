@@ -1,25 +1,18 @@
----
-name: tom-jerry-onboarding-codex
-description: Scaffold a Tom & Jerry agent pair on the Band.ai platform from a user API key pasted by the band.ai onboarding flow. Provisions the agents via the platform API, then writes a working standalone project locally.
----
+# Band.ai Tom & Jerry Bootstrap Instructions (Claude Code)
 
-# Band.ai Tom & Jerry Onboarding Skill (Codex)
-
-You are running the Band.ai onboarding flow inside OpenAI Codex. The user has pasted text containing a Band.ai **user API key** and a link to this file. Your job is to:
+You are following the Band.ai Tom & Jerry onboarding instructions. The user has pasted text containing a Band.ai **user API key** and a link to this file. Your job is to:
 
 1. Provision two new agents (Tom and Jerry) on the Band.ai platform using the user API key.
 2. Scaffold a working standalone project locally that runs those agents, **by fetching the live example files from `band-ai/band-sdk-python` and transforming them** — no example code is bundled here.
 
-This is the Codex variant of the onboarding skill. Sibling files: `Claude/tom-jerry-onboarding/SKILL.md` (Claude Code), `Cursor/rules/tom-jerry-onboarding.mdc` (Cursor).
-
 ## Source of truth
 
-This skill fetches two kinds of external resources, both always from `main`:
+These instructions fetch two kinds of external resources, both always from `main`:
 
-1. **`scripts/register-agent.sh`** from `band-ai/add-band` (this skill's own repo) — the helper used to provision the agents in Step 5.
+1. **`scripts/register-agent.sh`** from `band-ai/add-band` (the repo where this file lives) — the helper used to provision the agents in Step 5.
 2. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6. `main` matches what `band-sdk` on PyPI is built from, so the scaffolded code and the installed library stay aligned.
 
-This AGENTS.md may itself be loaded from any branch (a feature branch during testing, `main` after merge) — no branch-sniffing is needed because everything the skill references is pinned to `main`.
+These instructions may themselves be loaded from any branch (a feature branch during testing, `main` after merge) — no branch-sniffing is needed because everything they reference is pinned to `main`.
 
 ### Example file map (from `band-sdk-python/main`)
 
@@ -34,13 +27,9 @@ This AGENTS.md may itself be loaded from any branch (a feature branch during tes
 
 The shared character prompts live at `examples/prompts/characters.py` — fetch verbatim, no transformation.
 
-## How to ask the user questions
-
-Codex has no structured picker UI. For every user prompt below, write a chat message containing a numbered list of options and wait for the user to reply with a number or the label. Don't proceed until they answer. Don't combine multiple questions into one prompt — ask, wait, then ask the next.
-
 ## Procedure
 
-Follow these steps in order.
+Follow these steps in order. Use AskUserQuestion for every user-facing prompt.
 
 ### Step 1 — Extract the user API key from the pasted text
 
@@ -56,22 +45,20 @@ If the user API key is missing, ask the user for it before proceeding.
 
 ### Step 2 — Ask which adapter (two-stage picker)
 
-Two stages for clarity. The second is only asked when the first selects the "framework" bucket.
+`AskUserQuestion` accepts at most 4 options, so we split the adapter pick into two questions. The second is only asked when the first selects the "framework" bucket.
 
-**Step 2a — Ask the runtime category** (numbered list, single choice):
+**Step 2a — Ask the runtime category** (single-select, 4 options):
 
-> Which runtime do you want?
-> 1) **Framework + your LLM key** — Run inside an agent framework (langgraph / crewai / pydantic_ai). You provide an OpenAI or Anthropic API key.
-> 2) **Direct Anthropic SDK** — Plain Anthropic SDK loop. Needs an Anthropic API key. *(sets `adapter = anthropic`)*
-> 3) **Claude Agent SDK** — Uses the Claude Code subprocess. **No external LLM key needed** — requires Node.js 20+ and `npm install -g @anthropic-ai/claude-code`. *(sets `adapter = claude_sdk`)*
-> 4) **Parlant** — Conversation-modeling framework. Needs an OpenAI API key. *(sets `adapter = parlant`)*
+- **Framework + your LLM key** — Run inside an agent framework (langgraph / crewai / pydantic_ai). You provide an OpenAI or Anthropic API key.
+- **Direct Anthropic SDK** — Plain Anthropic SDK loop. Needs an Anthropic API key. *(sets `adapter = anthropic`)*
+- **Claude Agent SDK** — Uses the Claude Code subprocess. **No external LLM key needed** — requires Node.js 20+ and `npm install -g @anthropic-ai/claude-code`. *(sets `adapter = claude_sdk`)*
+- **Parlant** — Conversation-modeling framework. Needs an OpenAI API key. *(sets `adapter = parlant`)*
 
-**Step 2b — Ask the framework** *(only if Step 2a was option 1)*:
+**Step 2b — Ask the framework** *(only if Step 2a was "Framework + your LLM key")* (single-select, 3 options):
 
-> Which framework?
-> 1) **langgraph** — Graph-based, LangChain ecosystem.
-> 2) **crewai** — Role-based multi-agent.
-> 3) **pydantic_ai** — Pydantic AI agent.
+- **langgraph** — Graph-based, LangChain ecosystem.
+- **crewai** — Role-based multi-agent.
+- **pydantic_ai** — Pydantic AI agent.
 
 ### Step 3 — Ask which LLM (conditional)
 
@@ -80,7 +67,7 @@ Two stages for clarity. The second is only asked when the first selects the "fra
 | `anthropic` | Skip — Anthropic only | `ANTHROPIC_API_KEY` |
 | `claude_sdk` | Skip — no external LLM | none |
 | `parlant` | Skip — OpenAI only (default NLP service) | `OPENAI_API_KEY` |
-| `crewai`, `langgraph`, `pydantic_ai` | Ask: OpenAI or Anthropic (numbered list) | matching key |
+| `crewai`, `langgraph`, `pydantic_ai` | Ask: OpenAI or Anthropic | matching key |
 
 ### Step 4 — Confirm output directory
 
@@ -97,7 +84,7 @@ BAND_AGENT_ID=<uuid>
 BAND_API_KEY=<agent-key>
 ```
 
-Run via the shell (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
+Run via Bash (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
 
 ```bash
 REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/register-agent.sh"
@@ -127,15 +114,15 @@ unset BAND_USER_API_KEY BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAN
 
 **Special case — "name has already been taken":** if the script's stderr (or the response body it echoes) contains `has already been taken`, that's the platform telling you the user already has Band.ai agents named `Tom` and/or `Jerry` on their account — the platform enforces uniqueness on `(owner_id, name)`. STOP, clean up the tempfile and unset the env vars (same cleanup as the success path), then tell the user (use this wording or something close):
 
-> ⚠️ **Can't continue — agents already exist.** You already have a Band.ai agent named **Tom** or **Jerry** on your account. The skill needs to create new ones with those exact names, and the platform won't allow duplicates. Please open the Band.ai UI and either **delete** the existing Tom/Jerry agents or **rename** them (e.g. `Tom-old`). Once that's done, reply here and I'll retry the provisioning step.
+> ⚠️ **Can't continue — agents already exist.** You already have a Band.ai agent named **Tom** or **Jerry** on your account. These instructions need to create new ones with those exact names, and the platform won't allow duplicates. Please open the Band.ai UI and either **delete** the existing Tom/Jerry agents or **rename** them (e.g. `Tom-old`). Once that's done, reply here and I'll retry the provisioning step.
 
-Then **wait for the user's reply** — do not retry on your own, do not move on to Step 6, do not write any files. When the user confirms they've cleaned up, retry Step 5 from the top. If they ask to abort, stop the skill cleanly.
+Then **wait for the user's reply** — do not retry on your own, do not move on to Step 6, do not write any files. When the user confirms they've cleaned up, retry Step 5 from the top. If they ask to abort, stop cleanly.
 
 Keep `TOM_AGENT_ID`, `TOM_API_KEY`, `JERRY_AGENT_ID`, `JERRY_API_KEY` in memory for Step 7. Do NOT write the user API key anywhere on disk — it's used only here.
 
 ### Step 6 — Fetch and transform the example files
 
-Fetch these three files from `band-ai/band-sdk-python` (always `main`) using `curl -fsSL`:
+Fetch these three files from `band-ai/band-sdk-python` (always `main`):
 
 1. `examples/prompts/characters.py`
 2. The Tom file for the chosen adapter (see map above)
@@ -177,14 +164,14 @@ Fetch these three files from `band-ai/band-sdk-python` (always `main`) using `cu
    ```
    (Keep the existing `logger = logging.getLogger(__name__)` line.)
 
-5. **Replace the module docstring.** Replace the entire top-of-file `"""..."""` block (the one immediately after `from __future__ import annotations`, if present, or otherwise the first triple-quoted string in the file) with a single-line docstring:
+5. **Replace the module docstring.** The upstream example docstring describes how to run the file from the repo root and mentions `prompts/characters.py` — both are wrong for the scaffolded standalone project. Replace the entire top-of-file `"""..."""` block (the one immediately after `from __future__ import annotations`, if present, or otherwise the first triple-quoted string in the file) with a single-line docstring:
 
    - Tom file: `"""Tom the cat agent (<ADAPTER>)."""`
    - Jerry file: `"""Jerry the mouse agent (<ADAPTER>)."""`
 
    Where `<ADAPTER>` is the human-readable adapter name (LangGraph, CrewAI, Anthropic, Claude SDK, Parlant, Pydantic AI).
 
-6. **Swap the LLM if the user picked something other than the example default.** Only modify if the user's choice differs.
+6. **Swap the LLM if the user picked something other than the example default.** The example defaults are listed below. Only modify if the user's choice differs.
 
    | Adapter | Example default | Anthropic swap | OpenAI swap |
    |---|---|---|---|
@@ -197,7 +184,7 @@ Write each transformed file to `<out>/tom_agent.py` and `<out>/jerry_agent.py`.
 
 ### Step 7 — Generate scaffolding files
 
-Write these directly (they're scaffolding, not SDK code — no fetch needed).
+Write these directly (they're scaffolding, not SDK code — no fetch needed). Substitute the bracketed values.
 
 **`<out>/agent_config.yaml`** — uses the four values captured in Step 5:
 ```yaml
@@ -252,6 +239,8 @@ dependencies = [
 3.12
 ```
 
+(Belt-and-suspenders with the `requires-python` cap — pins the interpreter explicitly so `uv sync` picks 3.12 instead of whatever the newest local Python happens to be.)
+
 **`<out>/.gitignore`**
 ```
 .env
@@ -264,53 +253,29 @@ __pycache__/
 
 Skip for `claude_sdk`.
 
-Ask the user (numbered list):
-
-> How should we handle your LLM API key?
-> 1) **I'll add it to the .env myself** — I'll point you at `<out>/.env` and which line to fill.
-> 2) **Add it for me now** — paste the key in your next message and I'll write it into `.env`.
+AskUserQuestion (single-select):
+- **I'll add it to the .env myself** — show the path `<out>/.env` and which line to fill.
+- **Add it for me now** — ask for the key and edit the .env in place.
 
 ### Step 9 — Ask who runs the agents
 
-Ask the user (numbered list):
-
-> How should we run the two agents?
-> 1) **I'll run them myself** (recommended — easier to watch logs and shut down)
-> 2) **You run them for me in the background**
-
-**If option 1:**
-
-Show this and stop. The user runs the commands in two terminals.
-
-```
-cd <out>
-uv sync
-uv run python tom_agent.py     # terminal 1
-uv run python jerry_agent.py   # terminal 2
-```
-
-**If option 2:**
-
-Codex doesn't have a clean background-task surface, so run the agents detached via `nohup` and capture PIDs. Do these in order:
-
-1. `cd <out> && uv sync` (foreground, wait for it to finish; abort the rest on non-zero exit).
-2. Launch Tom detached:
-   ```bash
-   cd <out> && nohup uv run python tom_agent.py > tom.log 2>&1 & echo "TOM_PID=$!"
-   ```
-3. Launch Jerry detached:
-   ```bash
-   cd <out> && nohup uv run python jerry_agent.py > jerry.log 2>&1 & echo "JERRY_PID=$!"
-   ```
-4. Tell the user how to tail logs and how to kill the processes when they're done:
-   ```bash
-   tail -f <out>/tom.log <out>/jerry.log    # watch
-   kill <TOM_PID> <JERRY_PID>               # stop
-   ```
+AskUserQuestion (single-select):
+- **I'll run them myself** — show:
+  ```
+  cd <out>
+  uv sync
+  uv run python tom_agent.py     # terminal 1
+  uv run python jerry_agent.py   # terminal 2
+  ```
+- **Claude, run them for me** — do these in order:
+  1. `cd <out> && uv sync` (foreground, wait for it to finish). This installs deps and lockfile; the background launches below assume it succeeded.
+  2. Start Tom with `run_in_background: true`: `cd <out> && uv run python tom_agent.py`
+  3. Start Jerry with `run_in_background: true`: `cd <out> && uv run python jerry_agent.py`
+  4. Give the user the `BashOutput` command for each background bash ID so they can tail logs.
 
 ### Step 10 — Show the user how to trigger the chase
 
-Both agents are running and connected. Present these steps to the user (copy the block below verbatim, just substitute the platform URL from `BAND_REST_URL` in their `.env`):
+Both agents are running and connected. To see them in action, present these steps to the user (copy the block below verbatim, just substitute the platform URL from `BAND_REST_URL` in their `.env`):
 
 > **Watch Tom chase Jerry on the platform**
 >
@@ -321,11 +286,11 @@ Both agents are running and connected. Present these steps to the user (copy the
 > 5. Select the **Tom** agent card, then click **Done**. Tom appears under **AGENTS** in the panel.
 > 6. In the message box at the bottom, type `@Tom catch jerry` and hit send.
 >
-> Tom will look up Jerry, invite him into the chat automatically, and start trying to lure him out of his hole. The persuasion will escalate over up to 10 attempts — watch the back-and-forth in the chat, and tail the terminal logs if anything looks stuck.
+> Tom will look up Jerry, invite him into the chat automatically, and start trying to lure him out of his hole. The persuasion will escalate over up to 10 attempts — watch the back-and-forth in the chat, and tail the terminal logs (or the BashOutput stream if Claude is running them) if anything looks stuck.
 
 Only add Tom as a participant — Tom finds and invites Jerry himself via the platform tools. Don't tell the user to add Jerry manually.
 
-## Rules for the agent
+## Rules for Claude
 
 - **Don't clone `band-ai/add-band` or `band-ai/band-sdk-python`.** Only fetch the specific files listed above.
 - **The user API key is sensitive.** Pass it via env (never argv); use it only in Step 5; do not write it to any file on disk.
