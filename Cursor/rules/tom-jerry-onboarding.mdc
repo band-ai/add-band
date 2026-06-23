@@ -14,23 +14,12 @@ This is the Cursor variant of the onboarding skill. Sibling files: `Claude/tom-j
 
 ## Source of truth
 
-This skill spans two repos:
+This skill fetches two kinds of external resources, both always from `main`:
 
-1. **`band-ai/add-band`** (where this file lives) — hosts the skill itself plus the `scripts/register-agent.sh` helper used to provision the agents in Step 5. Fetched from the branch this file was loaded from.
-2. **`thenvoi/thenvoi-sdk-python`** — hosts the example agent files (Tom & Jerry per adapter) that Step 6 fetches and transforms. Fetched from `main` — that's what `band-sdk` on PyPI is built from, so the examples and the installed library stay aligned.
+1. **`scripts/register-agent.sh`** from `band-ai/add-band` (this skill's own repo) — the helper used to provision the agents in Step 5.
+2. **Example agent files + `characters.py`** from `thenvoi/thenvoi-sdk-python` — fetched and transformed in Step 6. `main` matches what `band-sdk` on PyPI is built from, so the scaffolded code and the installed library stay aligned.
 
-### Determining the add-band branch
-
-Parse it from the URL of this file the user gave you. The expected shape is:
-
-```
-https://raw.githubusercontent.com/band-ai/add-band/<branch>/Cursor/rules/tom-jerry-onboarding.mdc
-```
-
-`<branch>` is the segment between the repo name and `Cursor/`.
-
-- If you fetched this file from a `raw.githubusercontent.com` URL matching that shape, use the branch for `scripts/register-agent.sh` fetches.
-- If this file was loaded via any other path (local file, different host, URL that doesn't match), **STOP and ask the user which add-band branch to use** — show them the URL you were given. Do not silently fall back to `main`.
+This file may itself be loaded from any branch (a feature branch during testing, `main` after merge) — no branch-sniffing is needed because everything the skill references is pinned to `main`.
 
 ### Example file map (from `thenvoi-sdk-python/main`)
 
@@ -113,7 +102,7 @@ BAND_API_KEY=<agent-key>
 Run via the terminal (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
 
 ```bash
-REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/<branch>/scripts/register-agent.sh"
+REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/register-agent.sh"
 SCRIPT_FILE=$(mktemp) && curl -fsSL "$REGISTER_URL" -o "$SCRIPT_FILE"
 export BAND_USER_API_KEY="<user-api-key-from-step-1>"
 
