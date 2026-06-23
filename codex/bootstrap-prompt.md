@@ -1,11 +1,11 @@
-# Band.ai Tom & Jerry Bootstrap Instructions (Cursor)
+# Band.ai Tom & Jerry Bootstrap Instructions (Codex)
 
-You are following the Band.ai Tom & Jerry onboarding instructions inside Cursor (Agent / Composer mode). The user has pasted text containing a Band.ai **user API key** and a link to this file. Your job is to:
+You are following the Band.ai Tom & Jerry onboarding instructions inside OpenAI Codex. The user has pasted text containing a Band.ai **user API key** and a link to this file. Your job is to:
 
 1. Provision two new agents (Tom and Jerry) on the Band.ai platform using the user API key.
 2. Scaffold a working standalone project locally that runs those agents, **by fetching the live example files from `band-ai/band-sdk-python` and transforming them** — no example code is bundled here.
 
-This is the Cursor variant. Sibling files: `Claude/bootstrap-prompt.md` (Claude Code), `Codex/bootstrap-prompt.md` (Codex).
+This is the Codex variant. Sibling files: `claude/bootstrap-prompt.md` (Claude Code), `cursor/bootstrap-prompt.md` (Cursor).
 
 ## Source of truth
 
@@ -31,7 +31,7 @@ The shared character prompts live at `examples/prompts/characters.py` — fetch 
 
 ## How to ask the user questions
 
-Cursor's Agent mode has no structured picker UI for free-form questions. For every user prompt below, write a chat message containing a numbered list of options and wait for the user to reply with a number or the label. Don't proceed until they answer. Don't combine multiple questions into one prompt — ask, wait, then ask the next.
+Codex has no structured picker UI. For every user prompt below, write a chat message containing a numbered list of options and wait for the user to reply with a number or the label. Don't proceed until they answer. Don't combine multiple questions into one prompt — ask, wait, then ask the next.
 
 ## Procedure
 
@@ -92,7 +92,7 @@ BAND_AGENT_ID=<uuid>
 BAND_API_KEY=<agent-key>
 ```
 
-Run via the terminal (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
+Run via the shell (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
 
 ```bash
 REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/register-agent.sh"
@@ -286,7 +286,7 @@ uv run python jerry_agent.py   # terminal 2
 
 **If option 2:**
 
-Cursor's Agent terminal doesn't keep long-lived processes alive after the agent step ends, so run the agents detached via `nohup` and capture PIDs. Do these in order:
+Codex doesn't have a clean background-task surface, so run the agents detached via `nohup` and capture PIDs. Do these in order:
 
 1. `cd <out> && uv sync` (foreground, wait for it to finish; abort the rest on non-zero exit).
 2. Launch Tom detached:
