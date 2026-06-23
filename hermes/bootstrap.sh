@@ -39,7 +39,11 @@ skill_dir="$("$hermes_python" -c 'import pathlib, hermes_band_platform; print(pa
 unset BAND_API_KEY
 
 # Enable the plugin, then hand off the remaining setup to the add-band skill.
-hermes plugins enable band 2>/dev/null && hermes plugins list | grep -qw band \
+# `hermes plugins enable` only sees directory plugins, not entry-point packages
+# like band, so it prints a benign "not installed or bundled" on stdout and fails;
+# silence both streams and let the config-write fallback enable it. (When the CLI
+# learns to enable entry-point plugins, this public path will just start working.)
+hermes plugins enable band >/dev/null 2>&1 && hermes plugins list | grep -qw band \
   || "$hermes_python" -c "from hermes_cli import plugins_cmd as C; s=C._get_enabled_set(); s.add('band'); C._save_enabled_set(s); print('enabled band via config')"
 # The band plugin namespaces its skills, so the skill resolves as `band:add-band`,
 # not the bare `add-band` (plugin skills never enter the flat ~/.hermes/skills tree).
