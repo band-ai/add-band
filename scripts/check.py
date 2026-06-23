@@ -38,6 +38,12 @@ VALID_STATUSES = {"available", "planned"}
 # the web app serves; the web app hands the user a key to paste, it does not edit the script.
 KEY_VAR = "BAND_API_KEY"
 
+# Markers bounding the minimal copy-paste snippet inside bootstrap.sh. Optional:
+# a script with no markers uses its whole (comment-stripped) body as the mini.
+MINI_START = "# >>> band:mini"
+MINI_END = "# <<< band:mini"
+MINI_MAX_LINES = 15  # accumulative, across all regions; counts command lines only
+
 
 def integration_dirs() -> set[str]:
     """Top-level candidate integration folders (excludes meta/structural dirs)."""

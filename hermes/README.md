@@ -93,13 +93,8 @@ show a clear error if `import band` still fails.
 
 ## Verify
 
-After the gateway restarts, check the real connection signals:
-
-```bash
-grep -E '\[band\] Connected as agent|\[band\] Hub ready: room|✓ band connected' ~/.hermes/logs/gateway.log
-grep BAND_HUB_ROOM ~/.hermes/.env   # a non-empty UUID = hub created
-```
-
-Then open the auto-created **"Hermes Agent Hub"** room in Band and **@mention the
-agent** — Band has no DMs, so an un-mentioned message is ignored by design. A
-reply means you're live.
+After the gateway restarts, the Band connection surfaces in the gateway log (a
+"Connected as agent" / "Hub ready" line) and `BAND_HUB_ROOM` is set to a UUID in
+Hermes's `.env` — the skill's `verify_gateway.py` checks both for you. Then open the
+auto-created **"Hermes Agent Hub"** room in Band and **@mention the agent** — Band has
+no DMs, so an un-mentioned message is ignored by design. A reply means you're live.
