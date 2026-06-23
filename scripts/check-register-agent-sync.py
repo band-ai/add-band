@@ -11,8 +11,7 @@ those copies honest:
 
   python3 scripts/check-register-agent-sync.py --strict
       Also fail when any declared copy is missing. Use this in a multi-repo CI
-      job that checks out add-band plus nanoclaw-band, hermes-band, and
-      openclaw-channel-band side by side.
+      job that checks out add-band plus nanoclaw-band side by side.
 
   python3 scripts/check-register-agent-sync.py --sync
       Copy the canonical helper into every declared repo that exists locally.
@@ -53,11 +52,6 @@ TARGETS = [
         "nanoclaw-thenvoi",
         SIBLINGS / "nanoclaw-thenvoi",
         Path(".claude/skills/add-band/scripts/register-agent.sh"),
-    ),
-    Target(
-        "openclaw-channel-band",
-        SIBLINGS / "openclaw-channel-band",
-        Path("scripts/register-agent.sh"),
     ),
 ]
 
