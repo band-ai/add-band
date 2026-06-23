@@ -8,18 +8,18 @@ description: Scaffold a Tom & Jerry agent pair on the Band.ai platform from a us
 You are running the Band.ai onboarding flow. The user has pasted text containing a Band.ai **user API key** and a link to this skill. Your job is to:
 
 1. Provision two new agents (Tom and Jerry) on the Band.ai platform using the user API key.
-2. Scaffold a working standalone project locally that runs those agents, **by fetching the live example files from `thenvoi/thenvoi-sdk-python` and transforming them** — no example code is bundled in this skill.
+2. Scaffold a working standalone project locally that runs those agents, **by fetching the live example files from `band-ai/band-sdk-python` and transforming them** — no example code is bundled in this skill.
 
 ## Source of truth
 
 This skill fetches two kinds of external resources, both always from `main`:
 
 1. **`scripts/register-agent.sh`** from `band-ai/add-band` (this skill's own repo) — the helper used to provision the agents in Step 5.
-2. **Example agent files + `characters.py`** from `thenvoi/thenvoi-sdk-python` — fetched and transformed in Step 6. `main` matches what `band-sdk` on PyPI is built from, so the scaffolded code and the installed library stay aligned.
+2. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6. `main` matches what `band-sdk` on PyPI is built from, so the scaffolded code and the installed library stay aligned.
 
 This SKILL.md may itself be loaded from any branch (a feature branch during testing, `main` after merge) — no branch-sniffing is needed because everything the skill references is pinned to `main`.
 
-### Example file map (from `thenvoi-sdk-python/main`)
+### Example file map (from `band-sdk-python/main`)
 
 | Adapter | Tom file | Jerry file |
 |---|---|---|
@@ -40,11 +40,9 @@ Follow these steps in order. Use AskUserQuestion for every user-facing prompt.
 
 Look in the conversation so far for:
 - A **Band.ai user API key** (begins with `band_u_`).
-- Optionally `THENVOI_REST_URL` and `THENVOI_WS_URL`. If absent, use the production defaults:
-  - `THENVOI_REST_URL=https://app.band.ai`
-  - `THENVOI_WS_URL=wss://app.band.ai/api/v1/socket/websocket`
-
-(The env var names stay `THENVOI_*` because the SDK reads those names — only the URL values point at band.ai.)
+- Optionally `BAND_REST_URL` and `BAND_WS_URL`. If absent, use the production defaults:
+  - `BAND_REST_URL=https://app.band.ai`
+  - `BAND_WS_URL=wss://app.band.ai/api/v1/socket/websocket`
 
 If the user API key is missing, ask the user for it before proceeding.
 
@@ -100,14 +98,14 @@ export BAND_USER_API_KEY="<user-api-key-from-step-1>"
 
 # Tom
 export BAND_AGENT_NAME="Tom"
-export BAND_AGENT_DESCRIPTION="A clever and persistent cat who loves to catch mice. Known for creative schemes and dramatic personality."
+export BAND_AGENT_DESCRIPTION="A clever and persistent cat who loves to catch mice. Known for creative schemes and dramatic flair."
 eval "$(bash "$SCRIPT_FILE")"
 TOM_AGENT_ID="$BAND_AGENT_ID"
 TOM_API_KEY="$BAND_API_KEY"
 
 # Jerry
 export BAND_AGENT_NAME="Jerry"
-export BAND_AGENT_DESCRIPTION="A clever and friendly mouse who lives in a cozy hole. Smart enough to see through tricks. Loves cheese."
+export BAND_AGENT_DESCRIPTION="A clever and friendly mouse who lives in a cozy hole. Smart, witty, and loves cheese."
 eval "$(bash "$SCRIPT_FILE")"
 JERRY_AGENT_ID="$BAND_AGENT_ID"
 JERRY_API_KEY="$BAND_API_KEY"
@@ -129,7 +127,7 @@ Keep `TOM_AGENT_ID`, `TOM_API_KEY`, `JERRY_AGENT_ID`, `JERRY_API_KEY` in memory 
 
 ### Step 6 — Fetch and transform the example files
 
-Fetch these three files from `thenvoi/thenvoi-sdk-python` (always `main`):
+Fetch these three files from `band-ai/band-sdk-python` (always `main`):
 
 1. `examples/prompts/characters.py`
 2. The Tom file for the chosen adapter (see map above)
@@ -182,7 +180,7 @@ Fetch these three files from `thenvoi/thenvoi-sdk-python` (always `main`):
 
    | Adapter | Example default | Anthropic swap | OpenAI swap |
    |---|---|---|---|
-   | `langgraph` | `from langchain_openai import ChatOpenAI` + `ChatOpenAI(model="gpt-5.4-mini")` | replace import with `from langchain_anthropic import ChatAnthropic`, replace constructor with `ChatAnthropic(model="claude-sonnet-4-5-20250929")` | already default |
+   | `langgraph` | `from langchain_openai import ChatOpenAI` + `ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"))` | replace import with `from langchain_anthropic import ChatAnthropic`, replace constructor with `ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"))` | already default |
    | `crewai` | `model="gpt-5.4-mini"` | `model="anthropic/claude-sonnet-4-5-20250929"` (litellm prefix) | already default |
    | `pydantic_ai` | `model="openai:gpt-5.4-mini"` | `model="anthropic:claude-sonnet-4-5-20250929"` | already default |
    | `anthropic`, `claude_sdk`, `parlant` | n/a — no swap path | — | — |
@@ -212,8 +210,8 @@ jerry_agent:
 - `parlant` → `OPENAI_API_KEY=`
 
 ```
-THENVOI_REST_URL=<REST_URL>
-THENVOI_WS_URL=<WS_URL>
+BAND_REST_URL=<REST_URL>
+BAND_WS_URL=<WS_URL>
 <LLM_KEY_LINE>
 ```
 
@@ -231,17 +229,15 @@ The `requires-python` upper bound matters: without it `uv` will pick the newest 
 
 ```toml
 [project]
-name = "thenvoi-tom-jerry"
+name = "band-tom-jerry"
 version = "0.1.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "band-sdk[<EXTRA>]>=0.2.10",
+    "band-sdk[<EXTRA>]>=1.1.0",
 <ANTHROPIC_DEPS>
     "python-dotenv>=1.0.0",
 ]
 ```
-
-Note: `band-sdk` is the PyPI name; the installed Python module is still `thenvoi` (so the agent code's `from thenvoi import ...` imports are unchanged).
 
 **`<out>/.python-version`**
 ```
@@ -284,11 +280,11 @@ AskUserQuestion (single-select):
 
 ### Step 10 — Show the user how to trigger the chase
 
-Both agents are running and connected. To see them in action, present these steps to the user (copy the block below verbatim, just substitute the platform URL from `THENVOI_REST_URL` in their `.env`):
+Both agents are running and connected. To see them in action, present these steps to the user (copy the block below verbatim, just substitute the platform URL from `BAND_REST_URL` in their `.env`):
 
 > **Watch Tom chase Jerry on the platform**
 >
-> 1. Open **<THENVOI_REST_URL>** in your browser and sign in.
+> 1. Open **<BAND_REST_URL>** in your browser and sign in.
 > 2. In the left sidebar, click **Chats**.
 > 3. Click **Start Your First Chat** — a new session opens.
 > 4. In the **Participants** panel on the right, click the **+** next to the heading.
@@ -301,7 +297,7 @@ Only add Tom as a participant — Tom finds and invites Jerry himself via the pl
 
 ## Rules for Claude
 
-- **Don't clone `band-ai/add-band` or `thenvoi/thenvoi-sdk-python`.** Only fetch the specific files listed above.
+- **Don't clone `band-ai/add-band` or `band-ai/band-sdk-python`.** Only fetch the specific files listed above.
 - **The user API key is sensitive.** Pass it via env (never argv); use it only in Step 5; do not write it to any file on disk.
 - **Don't bundle copies of the examples or `register-agent.sh`** in the generated project — they are fetched live, every time.
 - **Don't walk the user through `characters.py`** — it's long and not relevant to onboarding.
