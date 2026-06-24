@@ -22,8 +22,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Top-level dirs that are not integrations.
-STRUCTURAL = {"scripts", "tests"}
+# Top-level dirs that are not catalog integrations: tooling (scripts, tests) and
+# the per-coding-agent onboarding-prompt folders (each ships a bootstrap-prompt.md,
+# not a manifest.yaml + bootstrap.sh), which this check doesn't validate.
+STRUCTURAL = {"scripts", "tests", "claude", "codex", "cursor"}
 
 # README-only stubs with no bootstrap yet. Listing one here is a deliberate
 # opt-out; the drift test fails for any unclassified folder.
