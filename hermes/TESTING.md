@@ -55,11 +55,11 @@ hermes                  # say "hi", get a reply, exit. No reply ⇒ fix model/au
 
 ## Part 1 — The copy-paste (the actual user flow)
 
-Substitute the real key for `{{BAND_USER_API_KEY}}` — exactly what the web app does —
-then paste the snippet in the Part 0 shell:
+Export your real key as `BAND_USER_API_KEY` — exactly what the web app's snippet
+does — then paste the rest in the Part 0 shell:
 
 ```bash
-export BAND_USER_API_KEY="<your-band-user-api-key>"   # the web app fills this in
+export BAND_USER_API_KEY="<your-band-user-api-key>"   # the web app's snippet exports this
 rm -rf /tmp/hbp && git clone --depth 1 --branch main https://github.com/band-ai/hermes-band-platform /tmp/hbp
 SKILL=/tmp/hbp/hermes_band_platform/skills/add-band
 HERMES_PY="$(hermes --version 2>&1 | sed -n 's/^Project: //p')/venv/bin/python"

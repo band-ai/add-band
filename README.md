@@ -65,8 +65,9 @@ layers:
 Each integration ships a **hand-authored `bootstrap.sh`** (committed) plus a
 `manifest.yaml` of metadata. Bootstraps don't share a shape — Hermes hands a
 skill to its gateway; OpenClaw runs a couple of `curl`s and the `openclaw` CLI —
-so they aren't generated. The web app reads the full script and swaps in your key at
-the `{{BAND_USER_API_KEY}}` placeholder; `scripts/check.py` keeps every integration valid.
+so they aren't generated. The web app hands you a snippet that exports your key as
+`BAND_USER_API_KEY` and runs the script (which prompts if it's unset);
+`scripts/check.py` keeps every integration valid.
 
 <details>
 <summary>Repo layout</summary>

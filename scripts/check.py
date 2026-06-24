@@ -12,9 +12,10 @@ Bootstrap snippets are *not* generated and have no common shape — Hermes clone
 plugin repo and hands a skill to the gateway; OpenClaw runs a couple of curls and
 the openclaw CLI. So this script validates structure, not content.
 
-The web app reads the full ``bootstrap.sh`` and substitutes the user's key at the
-``{{BAND_USER_API_KEY}}`` placeholder, wherever it appears. This script enforces
-that the placeholder is present.
+The web app hands the user a snippet that exports their key as
+``BAND_USER_API_KEY`` and then runs ``bootstrap.sh``; the snippet consumes that
+env var, prompting for it when it's absent. This script enforces that each
+``bootstrap.sh`` references that variable.
 
     python3 scripts/check.py            # validate the whole catalog (CI gate)
 """
@@ -35,10 +36,10 @@ STUB_ONLY: set[str] = set()
 REQUIRED_MANIFEST_FIELDS = {"name", "repo", "connects_via", "status", "summary"}
 VALID_STATUSES = {"available", "planned"}
 
-# The web app substitutes the user's key for this token, regardless of how the
-# snippet passes it (env export, CLI flag, config write). It must appear
-# somewhere in bootstrap.sh — that's the part the web app fills in.
-KEY_PLACEHOLDER = "{{BAND_USER_API_KEY}}"
+# The user's key reaches the snippet as the BAND_USER_API_KEY env var (exported
+# by the web app's snippet, or prompted for when absent). bootstrap.sh must
+# reference this variable so it is actually wired to the key.
+KEY_ENV_VAR = "BAND_USER_API_KEY"
 
 
 def integration_dirs() -> set[str]:
@@ -89,10 +90,10 @@ def validate_integration(name: str) -> list[str]:
         )
         return problems
 
-    if KEY_PLACEHOLDER not in bootstrap.read_text(encoding="utf-8"):
+    if KEY_ENV_VAR not in bootstrap.read_text(encoding="utf-8"):
         problems.append(
-            f"{name}: '{KEY_PLACEHOLDER}' placeholder must appear in bootstrap.sh "
-            f"(the part the web app fills in)"
+            f"{name}: bootstrap.sh must consume the user key via ${KEY_ENV_VAR} "
+            f"(exported by the web app's snippet, or prompted for when absent)"
         )
 
     return problems

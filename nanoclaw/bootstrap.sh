@@ -24,11 +24,17 @@
 # repo with BAND_REPO and the clone/install location with BAND_DIR.
 set -e
 
-# The user key arrives pre-exported by the runner (export BAND_USER_API_KEY=… &&
-# <script>), possibly under the name BAND_API_KEY. Consume whichever is set and
-# don't clobber it; fall back to the placeholder the web app fills in.
+# The user key arrives pre-exported by the snippet the web app hands you
+# (export BAND_USER_API_KEY=… && <this script>), possibly under the name
+# BAND_API_KEY. Consume whichever is set; if neither is, prompt for it.
 export BAND_USER_API_KEY="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
-[ -n "$BAND_USER_API_KEY" ] || export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # the web app fills this in
+if [ -z "$BAND_USER_API_KEY" ] && [ -e /dev/tty ]; then
+  printf 'Band user API key: ' >/dev/tty
+  IFS= read -rs BAND_USER_API_KEY </dev/tty || true
+  printf '\n' >/dev/tty
+  export BAND_USER_API_KEY
+fi
+[ -n "$BAND_USER_API_KEY" ] || { echo "band: no Band user API key — set BAND_USER_API_KEY or run interactively." >&2; exit 1; }
 export BAND_REPO="${BAND_REPO:-https://github.com/band-ai/nanoclaw-band}"
 
 # --- locate (or create) the Band-ready checkout -----------------------------

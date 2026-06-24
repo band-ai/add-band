@@ -41,8 +41,8 @@ live in the Band-ready NanoClaw fork:
   an existing Band-ready checkout or clones one into `${BAND_DIR:-$HOME/agents/nanoclaw-band}`.
 - NanoClaw runtime prereqs (`node`, `pnpm`, Docker/container runtime as required
   by the fork's setup flow).
-- A Band account + **user** API key — supplied by the web app at the
-  `{{BAND_USER_API_KEY}}` placeholder; used once to register the agent.
+- A Band account + **user** API key — exported as `BAND_USER_API_KEY` by the web
+  app's snippet (or prompted for when absent); used once to register the agent.
 
 ## Verify
 

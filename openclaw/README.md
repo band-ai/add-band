@@ -24,8 +24,8 @@ the `openclaw` CLI.
 ## Prereqs
 
 - OpenClaw installed, with the `openclaw` CLI on `PATH`.
-- A Band account + user API key — supplied by the web app at the
-  `{{BAND_USER_API_KEY}}` placeholder; used once to register the agent.
+- A Band account + user API key — exported as `BAND_USER_API_KEY` by the web app's
+  snippet (or prompted for when absent); used once to register the agent.
 
 ## Verify
 

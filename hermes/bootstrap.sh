@@ -13,7 +13,16 @@
 #   4. hand off to the skill, which the agent follows to finish setup
 set -e
 
-export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # the web app fills this in
+# The user key arrives pre-exported by the snippet the web app hands you
+# (export BAND_USER_API_KEY=… && <this script>). If it isn't set, prompt for it.
+export BAND_USER_API_KEY="${BAND_USER_API_KEY:-}"
+if [ -z "$BAND_USER_API_KEY" ] && [ -e /dev/tty ]; then
+  printf 'Band user API key: ' >/dev/tty
+  IFS= read -rs BAND_USER_API_KEY </dev/tty || true
+  printf '\n' >/dev/tty
+  export BAND_USER_API_KEY
+fi
+[ -n "$BAND_USER_API_KEY" ] || { echo "band: no Band user API key — set BAND_USER_API_KEY or run interactively." >&2; exit 1; }
 rm -rf /tmp/hbp && git clone --depth 1 --branch main https://github.com/band-ai/hermes-band-platform /tmp/hbp
 SKILL=/tmp/hbp/hermes_band_platform/skills/add-band
 # Mint the Band agent here, in a plain shell — your user key never reaches the agent.

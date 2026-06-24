@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -e
-read -r -s -p "Enter your Band API key: " BAND_USER_API_KEY
-echo
+# The web app's snippet exports BAND_USER_API_KEY; fall back to a prompt.
+BAND_USER_API_KEY="${BAND_USER_API_KEY:-}"
+if [ -z "$BAND_USER_API_KEY" ]; then
+  read -r -s -p "Enter your Band API key: " BAND_USER_API_KEY </dev/tty
+  echo >&2
+fi
 RESP=$(curl -sS -X POST https://app.band.ai/api/v1/me/agents/register -H "X-API-Key: $BAND_USER_API_KEY" -H "Content-Type: application/json" -d '{"agent":{"name":"MyOpenClawAgent","description":"OpenClaw agent on Band"}}')
 read -r AGENT_ID AGENT_KEY < <(node -e 'const j=JSON.parse(require("fs").readFileSync(0));console.log(j.data.agent.id+" "+j.data.credentials.api_key);' <<<"$RESP")
 openclaw plugins install @band-ai/openclaw-channel-band --force
