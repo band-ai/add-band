@@ -18,7 +18,7 @@ and the mechanism (skill / plugin / MCP server / SDK adapter / CLI).
 
 Say where and how to run it (the host/context) and what it does at a high level — but
 **link to [`bootstrap.sh`](bootstrap.sh); don't paste a copy of it.** The web app serves
-the real snippet with the key filled in, and a duplicate here only drifts.
+the real snippet and the user pastes their key when it prompts, so a duplicate here only drifts.
 
 ## Source
 

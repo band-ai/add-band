@@ -12,11 +12,12 @@ common scripts, and `add-band` skill; this catalog only points users at it.
 
 ## Bootstrap
 
-Run on the host where you want NanoClaw to live — the Band web app hands you the
-snippet with your key already filled in; the script is [`bootstrap.sh`](bootstrap.sh).
+Run on the host where you want NanoClaw to live. The Band web app gives you a
+`curl … | bash` one-liner and your Band API key; run it and paste the key when the
+script prompts. The script is [`bootstrap.sh`](bootstrap.sh).
 
 It clones or updates `band-ai/nanoclaw-band` into `${NANOCLAW_HOME:-$HOME/nanoclaw-band}`,
-registers a Band agent with your **user** key, writes the returned **agent**
+registers a Band agent with your Band **API key**, writes the returned **agent**
 credentials to `.env` and `data/env/env`, then hands off to the fork's
 `add-band` skill. The skill mainly walks you through the remaining NanoClaw-side
 connection steps: setup, launch, channel wiring, and verification.
@@ -34,8 +35,8 @@ live in the Band-ready NanoClaw fork:
   or updates `${NANOCLAW_HOME:-$HOME/nanoclaw-band}`.
 - NanoClaw runtime prereqs (`node`, `pnpm`, Docker/container runtime as required
   by the fork's setup flow).
-- A Band account + **user** API key — supplied by the web app at the
-  `{{BAND_USER_API_KEY}}` placeholder; used once to register the agent.
+- A Band account + **API key** — paste it at the prompt (or pre-set
+  `BAND_API_KEY`); used once to register the agent.
 
 ## Verify
 
