@@ -6,7 +6,8 @@
 # no hermes_cli, no cloned repo — so a bootstrap can mint a Band agent before it
 # installs anything (the same shape openclaw/bootstrap.sh uses).
 #
-# Security: the key is read from $BAND_API_KEY (never an argument) and handed to
+# Security: the key is read from $BAND_API_KEY (or its alias $BAND_USER_API_KEY,
+# never an argument) and handed to
 # curl through a --config heredoc on stdin, so it never appears in any process's
 # argv (`ps`). Only the returned agent-scoped id + key are printed; the Band API
 # key is never echoed.
@@ -16,7 +17,7 @@
 #   BAND_AGENT_API_KEY=<agent-key>
 #
 # Usage:
-#   export BAND_API_KEY=...                  # or omit and paste it at the prompt
+#   export BAND_API_KEY=...                  # or BAND_USER_API_KEY, or paste at the prompt
 #   eval "$(scripts/register-agent.sh)"      # prompts for name + description, then
 #                                            # sets BAND_AGENT_ID + BAND_AGENT_API_KEY
 #   eval "$(scripts/register-agent.sh --name MyBot --description 'A helpful bot')"
@@ -46,7 +47,8 @@ Options:
   -d, --description DESC     agent description (prompted if omitted)
   -h, --help                 show this help and exit
 
-The Band API key is read from \$BAND_API_KEY, or pasted at the prompt.
+The Band API key is read from \$BAND_API_KEY (or \$BAND_USER_API_KEY), or
+pasted at the prompt.
 USAGE
 }
 
@@ -102,8 +104,10 @@ name=${name:-$name_default}
 desc=${desc:-$desc_default}
 
 # Read the Band API key: prompt on /dev/tty when unset (curl|bash makes stdin the
-# script), or accept a pre-set BAND_API_KEY. The prompt writes to /dev/tty, not
-# stdout, so it never pollutes the eval-able output above.
+# script), or accept a pre-set BAND_API_KEY (BAND_USER_API_KEY is honored as an
+# alias). The prompt writes to /dev/tty, not stdout, so it never pollutes the
+# eval-able output above.
+: "${BAND_API_KEY:=${BAND_USER_API_KEY:-}}"
 if [ -z "${BAND_API_KEY:-}" ]; then
   [ -r /dev/tty ] || { echo "band: no terminal here to ask on — set BAND_API_KEY and run again." >&2; exit 1; }
   printf 'Paste your Band API key (hidden as you type): ' >/dev/tty
