@@ -33,6 +33,19 @@ BAND_HERMES_REF="${BAND_HERMES_REF:-main}"
 # until the package is published to PyPI and verified installable.
 uv pip install --python "$hermes_python" "hermes-band-platform @ git+https://github.com/band-ai/hermes-band-platform.git@${BAND_HERMES_REF}"
 
+# Band agent names must be unique per account, so a bare default collides on a
+# second run (or with anyone else's "Hermes Agent") as "name has been taken".
+# Offer a name with a unique default; pre-set BAND_AGENT_NAME to skip the prompt.
+if [ -z "${BAND_AGENT_NAME:-}" ]; then
+  default_name="Hermes Agent ($(hostname -s 2>/dev/null || echo local) $(date +%Y%m%d-%H%M%S))"
+  if [ -r /dev/tty ]; then
+    printf 'Agent name [%s]: ' "$default_name" >/dev/tty
+    IFS= read -r BAND_AGENT_NAME </dev/tty
+  fi
+  BAND_AGENT_NAME="${BAND_AGENT_NAME:-$default_name}"
+fi
+export BAND_AGENT_NAME
+
 # Mint the Band agent using the helper bundled with the add-band skill.
 skill_dir="$("$hermes_python" -c 'import pathlib, hermes_band_platform; print(pathlib.Path(hermes_band_platform.__path__[0]) / "skills" / "add-band")')"
 "$hermes_python" "$skill_dir/scripts/register_agent.py"

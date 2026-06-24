@@ -24,10 +24,22 @@ fi
 # doesn't leave an orphaned Band agent behind.
 openclaw plugins install @band-ai/openclaw-channel-band --force
 
+# Band agent names must be unique per account, so a bare default collides on a
+# second run (or with anyone else's default) as "name has been taken". Offer a
+# name with a unique default; pre-set BAND_AGENT_NAME to skip the prompt.
+if [ -z "${BAND_AGENT_NAME:-}" ]; then
+  default_name="OpenClaw Agent ($(hostname -s 2>/dev/null || echo local) $(date +%Y%m%d-%H%M%S))"
+  if [ -r /dev/tty ]; then
+    printf 'Agent name [%s]: ' "$default_name" >/dev/tty
+    IFS= read -r BAND_AGENT_NAME </dev/tty
+  fi
+  BAND_AGENT_NAME="${BAND_AGENT_NAME:-$default_name}"
+fi
+
 # Register a Band agent. The API key goes through curl's --config (-K -) on
 # stdin, so it never appears in any process's argv (`ps`).
 base="${BAND_BASE_URL:-https://app.band.ai}"; base="${base%/}"
-name="${BAND_AGENT_NAME:-MyOpenClawAgent}"
+name="$BAND_AGENT_NAME"
 desc="${BAND_AGENT_DESCRIPTION:-OpenClaw agent on Band}"
 resp=$(curl -sS -X POST "$base/api/v1/me/agents/register" \
   -H "Content-Type: application/json" \
