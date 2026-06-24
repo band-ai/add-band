@@ -6,27 +6,21 @@ Connects a **NanoClaw** agent to Band — Band rooms/chats, plus the SDK-backed
 `band_*` platform tools. The channel registers as `band`, platform IDs use the
 `band:` prefix, and config lives in `BAND_*` env vars.
 NanoClaw's Band channel is **fork-shaped**: it touches core host and container
-files, not a single adapter. So the on-ramp works against the Band-ready NanoClaw
-fork instead of patching an arbitrary checkout. That fork owns the channel setup,
+files, not a single adapter. So the on-ramp clones the Band-ready NanoClaw fork
+instead of patching an arbitrary checkout. That fork owns the channel setup,
 common scripts, and `add-band` skill; this catalog only points users at it.
 
 ## Bootstrap
 
-Run on the host where you want NanoClaw to live — the Band web app hands you the
-snippet with your key already filled in; the script is [`bootstrap.sh`](bootstrap.sh).
+Run on the host where you want NanoClaw to live. The Band web app gives you a
+`curl … | bash` one-liner and your Band API key; run it and paste the key when the
+script prompts. The script is [`bootstrap.sh`](bootstrap.sh).
 
-It is **adoption-first**: it finds your existing NanoClaw install the way the host
-does — from the running service's working directory (`com.nanoclaw-v2-*` /
-`nanoclaw-v2-*`), then the `ncl` symlink, then `${BAND_DIR:-$HOME/agents/nanoclaw-band}`
-— and repoints it at the Band fork in place. If it can't find one it asks where it
-lives (clone there if it's missing, default if you leave it blank); only a fresh
-box clones `band-ai/nanoclaw-band`.
-It then registers a Band agent with your **user** key, writes the returned
-**agent** credentials to `.env` and `data/env/env`, and hands off to the fork's
-`add-band` skill. The skill walks you through the remaining NanoClaw-side
+It clones or updates `band-ai/nanoclaw-band` into `${NANOCLAW_HOME:-$HOME/nanoclaw-band}`,
+registers a Band agent with your Band **API key**, writes the returned **agent**
+credentials to `.env` and `data/env/env`, then hands off to the fork's
+`add-band` skill. The skill mainly walks you through the remaining NanoClaw-side
 connection steps: setup, launch, channel wiring, and verification.
-
-Override the clone location with `BAND_DIR` and the source repo with `BAND_REPO`.
 
 ## Source
 
@@ -37,12 +31,12 @@ live in the Band-ready NanoClaw fork:
 
 ## Prereqs
 
-- `git` and shell access on the host where NanoClaw should run. The snippet adopts
-  an existing Band-ready checkout or clones one into `${BAND_DIR:-$HOME/agents/nanoclaw-band}`.
+- `git` and shell access on the host where NanoClaw should run. The snippet creates
+  or updates `${NANOCLAW_HOME:-$HOME/nanoclaw-band}`.
 - NanoClaw runtime prereqs (`node`, `pnpm`, Docker/container runtime as required
   by the fork's setup flow).
-- A Band account + **user** API key — exported as `BAND_USER_API_KEY` by the web
-  app's snippet (or prompted for when absent); used once to register the agent.
+- A Band account + **API key** — paste it at the prompt (or pre-set
+  `BAND_API_KEY`); used once to register the agent.
 
 ## Verify
 

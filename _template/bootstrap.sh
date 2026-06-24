@@ -5,22 +5,25 @@
 # skill, run a couple of curls + a CLI, install an SDK, etc. Keep it thin: fetch
 # the integration's real artifact and hand off; the heavy lifting lives upstream.
 #
-# The ONE rule the web app relies on: consume the user's key from the
-# BAND_USER_API_KEY environment variable. The web app hands the user a snippet
-# that exports it before running this script; prompt for it when it's absent so a
-# copy-pasted run still works. Never bake the key into this committed file.
+# The ONE rule: the script must obtain the Band API key itself. Prompt for it
+# from /dev/tty when BAND_API_KEY is unset (curl|bash makes stdin the script),
+# or accept it pre-set in the env. check.py asserts the snippet references BAND_API_KEY.
+#
+# The whole script is what the web app serves behind a `curl … | bash` one-liner,
+# so keep it thin and readable.
 set -e
 
-# Acquire the Band user API key: env first (the web app's snippet exports it as
-# BAND_USER_API_KEY, or BAND_API_KEY), else an interactive prompt. Reusable as-is.
-export BAND_USER_API_KEY="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
-if [ -z "$BAND_USER_API_KEY" ] && [ -e /dev/tty ]; then
-  printf 'Band user API key: ' >/dev/tty
-  IFS= read -rs BAND_USER_API_KEY </dev/tty || true
+# Get the Band API key: prompt for it (or accept a pre-set BAND_API_KEY,
+# also honoring BAND_USER_API_KEY as an alias).
+: "${BAND_API_KEY:=${BAND_USER_API_KEY:-}}"
+if [ -z "${BAND_API_KEY:-}" ]; then
+  [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_API_KEY and re-run" >&2; exit 1; }
+  printf 'Paste your Band API key: ' >/dev/tty
+  IFS= read -r -s BAND_API_KEY </dev/tty
   printf '\n' >/dev/tty
-  export BAND_USER_API_KEY
 fi
-[ -n "$BAND_USER_API_KEY" ] || { echo "band: no Band user API key — set BAND_USER_API_KEY or run interactively." >&2; exit 1; }
+[ -n "${BAND_API_KEY:-}" ] || { echo "Band API key required" >&2; exit 1; }
+export BAND_API_KEY
 
-# ... your connect steps (use "$BAND_USER_API_KEY" to register the agent) ...
+# ... your connect steps ...
 echo "TODO: replace with the real <Harness> connect steps"

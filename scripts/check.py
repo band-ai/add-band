@@ -8,14 +8,10 @@ Every top-level integration folder is in exactly one of two states:
   - **stub** — README-only, no snippet yet. Listed in :data:`STUB_ONLY` so it is
     a deliberate opt-out rather than a silent gap.
 
-Bootstrap snippets are *not* generated and have no common shape — Hermes clones a
-plugin repo and hands a skill to the gateway; OpenClaw runs a couple of curls and
-the openclaw CLI. So this script validates structure, not content.
-
-The web app hands the user a snippet that exports their key as
-``BAND_USER_API_KEY`` and then runs ``bootstrap.sh``; the snippet consumes that
-env var, prompting for it when it's absent. This script enforces that each
-``bootstrap.sh`` references that variable.
+Bootstrap snippets are *not* generated and have no common shape — Hermes installs a
+plugin into the gateway and hands off to a setup skill; OpenClaw clones a repo and runs
+the openclaw CLI. So this script validates structure, not content: the whole
+``bootstrap.sh`` is the snippet the web app serves behind a ``curl … | bash`` one-liner.
 
     python3 scripts/check.py            # validate the whole catalog (CI gate)
 """
@@ -36,10 +32,17 @@ STUB_ONLY: set[str] = set()
 REQUIRED_MANIFEST_FIELDS = {"name", "repo", "connects_via", "status", "summary"}
 VALID_STATUSES = {"available", "planned"}
 
-# The user's key reaches the snippet as the BAND_USER_API_KEY env var (exported
-# by the web app's snippet, or prompted for when absent). bootstrap.sh must
-# reference this variable so it is actually wired to the key.
-KEY_ENV_VAR = "BAND_USER_API_KEY"
+# Every bootstrap obtains the Band API key itself — it prompts for it (reading from
+# /dev/tty, since `curl ... | bash` makes stdin the script) or accepts a pre-set
+# BAND_API_KEY from the environment. We assert the variable name appears in the script
+# the web app serves; the web app hands the user a key to paste, it does not edit the script.
+KEY_VAR = "BAND_API_KEY"
+
+# Markers bounding the minimal copy-paste snippet inside bootstrap.sh. Optional:
+# a script with no markers uses its whole (comment-stripped) body as the mini.
+MINI_START = "# >>> band:mini"
+MINI_END = "# <<< band:mini"
+MINI_MAX_LINES = 15  # accumulative, across all regions; counts command lines only
 
 
 def integration_dirs() -> set[str]:
@@ -70,6 +73,40 @@ def parse_manifest(path: Path) -> dict[str, str]:
     return fields
 
 
+def strip_shell_comment(line: str) -> str:
+    """Drop a shell trailing comment: the first unquoted ``#`` that begins a word.
+
+    Quote-aware, so a ``#`` inside a string or URL is preserved; a ``#`` at line
+    start or after whitespace (and outside quotes) begins a comment and is cut.
+    A whole-line comment or shebang collapses to ``""``. For any line with no
+    ``#`` the result is just the line, right-stripped.
+    """
+    out: list[str] = []
+    quote: str | None = None
+    prev_ws = True  # start of line counts as a word boundary
+    for ch in line:
+        if quote is not None:
+            out.append(ch)
+            if ch == quote:
+                quote = None
+            prev_ws = False
+        elif ch in ("'", '"'):
+            quote = ch
+            out.append(ch)
+            prev_ws = False
+        elif ch == "#" and prev_ws:
+            break
+        else:
+            out.append(ch)
+            prev_ws = ch.isspace()
+    return "".join(out).rstrip()
+
+
+def command_lines(text: str) -> list[str]:
+    """The script's command lines: comments, shebangs, and blanks stripped out."""
+    return [s for s in (strip_shell_comment(l) for l in text.splitlines()) if s.strip()]
+
+
 def validate_integration(name: str) -> list[str]:
     """Return a list of problems for a participating integration (empty == ok)."""
     problems: list[str] = []
@@ -90,16 +127,18 @@ def validate_integration(name: str) -> list[str]:
         )
         return problems
 
-    if KEY_ENV_VAR not in bootstrap.read_text(encoding="utf-8"):
+    cmds = command_lines(bootstrap.read_text(encoding="utf-8"))
+    if not cmds:
+        problems.append(f"{name}: bootstrap.sh has no command lines")
+    elif KEY_VAR not in "\n".join(cmds):
         problems.append(
-            f"{name}: bootstrap.sh must consume the user key via ${KEY_ENV_VAR} "
-            f"(exported by the web app's snippet, or prompted for when absent)"
+            f"{name}: bootstrap.sh must handle {KEY_VAR} "
+            f"(prompt for it, or accept it from the environment)"
         )
-
     return problems
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     problems: list[str] = []
 
     # Completeness: every folder is participating or an explicit stub.

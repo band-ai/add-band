@@ -9,9 +9,9 @@ An integration is one folder per harness:
   README.md        ← the human guide (the five sections below)
 ```
 
-**Bootstraps don't share a shape, so they aren't generated.** Hermes clones a
-plugin repo and hands a setup skill to its gateway; OpenClaw runs a couple of
-curls and the `openclaw` CLI. You author `bootstrap.sh` in whatever shape fits —
+**Bootstraps don't share a shape, so they aren't generated.** Hermes installs a
+plugin into its gateway and hands off to a setup skill; OpenClaw clones a repo and
+runs the `openclaw` CLI. You author `bootstrap.sh` in whatever shape fits —
 just keep it thin (fetch the real artifact and hand off; the heavy lifting lives
 upstream).
 
@@ -26,25 +26,29 @@ upstream).
    ```bash
    python3 scripts/check.py
    pytest tests/ -q
+   scripts/local-bootstrap.sh <harness> --print   # preview; drop --print to run it for real
    ```
+   See [TESTING.md](TESTING.md) for the full local-testing workflow.
 4. Add a row to the **Integrations** table in the [root README](README.md).
 
 ## The one rule the web app relies on
 
-Consume the user's key from the **`BAND_USER_API_KEY`** environment variable in
-`bootstrap.sh`. The web app hands the user a snippet that exports it before running
-the script — `export BAND_USER_API_KEY=… && <bootstrap>` — so it needs no per-shape
-logic. When the variable is unset, prompt for it (a silent `read` from `/dev/tty`)
-so a copy-pasted run still works, and never bake the key into the committed file.
-`check.py` enforces that `bootstrap.sh` references `BAND_USER_API_KEY`.
+The web app hands the user a Band **API key** to copy and a `curl … | bash`
+one-liner — it does **not** edit the script. So every `bootstrap.sh` must **acquire the
+key itself**: when `BAND_API_KEY` is unset, prompt for it (read from `/dev/tty`,
+since `curl … | bash` makes stdin the script), and otherwise accept it from the
+environment. `check.py` enforces that the snippet references `BAND_API_KEY`.
+
+The whole `bootstrap.sh` is what the web app serves behind the `curl … | bash`
+one-liner, so keep it thin and readable.
 
 ## How the catalog is validated
 
 `scripts/check.py` (run in CI) classifies every top-level integration folder:
 
 - **participating** — has a `manifest.yaml` + `bootstrap.sh`. Validated:
-  required manifest fields, a valid `status`, a `bootstrap.sh` that references
-  `BAND_USER_API_KEY`, and (via the tests) `bash -n` syntax.
+  required manifest fields, a valid `status`, a `bootstrap.sh` that handles
+  `BAND_API_KEY` (prompt or pre-set env), and (via the tests) `bash -n` syntax.
 - **stub** — README-only, no snippet yet. Must be listed in `STUB_ONLY` in
   `scripts/check.py`, so it's a deliberate opt-out, not a silent gap.
 
@@ -60,8 +64,8 @@ Every integration README answers the same five things, in order:
 
 1. **What it connects** — one paragraph: which Band capabilities the agent gets.
 2. **Bootstrap** — where and how to run it; link to `bootstrap.sh`, don't paste a
-   copy of it. The web app hands the user a snippet that exports the key and runs
-   the script, and a duplicate in the README only drifts.
+   copy of it. The web app serves the real snippet and the user pastes their key when
+   it prompts, so a duplicate in the README only drifts.
 3. **Source** — the upstream repo where the real artifact lives, plus its path.
 4. **Prereqs** — runtime/version requirements and the Band credentials needed.
 5. **Verify** — the concrete signal that it worked ("you should see…").
@@ -72,7 +76,7 @@ Every integration README answers the same five things, in order:
   plugin here — point at its repo. Install logic lives upstream.
 - **Shared helper scripts have one source of truth.** `scripts/register-agent.sh`
   is the canonical shell helper for minting agent-scoped Band credentials from a
-  user key. Integration repos that need an offline copy should vendor it under
+  Band API key. Integration repos that need an offline copy should vendor it under
   their own add-band skill (for example
   `.claude/skills/add-band/scripts/register-agent.sh`) and keep it synced with
   `python3 scripts/check-register-agent-sync.py --sync`. Run the checker without
@@ -81,9 +85,8 @@ Every integration README answers the same five things, in order:
 - **Pin refs in the snippet.** Clone a tag/commit, not a moving branch, so a
   copied snippet keeps working.
 - **Fail loud.** Prefer `set -e` and an early check for the harness binary.
-- **Don't make the user hand-type their key into your steps.** Read it from
-  `BAND_USER_API_KEY` (the web app's snippet exports it), with a silent `read`
-  from `/dev/tty` as the fallback. Never commit the key into the file.
+- **Never bake a secret into the snippet.** Prompt for `BAND_API_KEY` from
+  `/dev/tty` when it's unset, or accept it pre-set in the environment.
 
 ## Going full CLI later
 
@@ -94,6 +97,6 @@ machine-readable; what's left to build:
 - **A registry / machine-readable index** the CLI lists from, instead of the
   Markdown table (which would be generated from it).
 - **The CLI runs the integration's `bootstrap.sh`** (or a structured form of it),
-  prompting for `BAND_USER_API_KEY` and the harness's prereqs.
+  supplying `BAND_API_KEY` and checking the harness's prereqs.
 - **Schema + link validation in CI**, extending `check.py` so a bad manifest
   can't ship.
