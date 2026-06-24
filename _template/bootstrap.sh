@@ -7,11 +7,7 @@
 #
 # The ONE rule the web app relies on: put the user's key behind the literal token
 # {{BAND_USER_API_KEY}} (in an env export, a CLI flag, a config write — your call).
-#
-# The web app shows a comment-stripped copy-paste version of this script. If it
-# runs past ~15 command lines, mark the subset to show with '# >>> band:mini' /
-# '# <<< band:mini'; otherwise the whole (comment-stripped) script is the snippet.
-# Preview it with `python3 scripts/check.py --mini <harness>`.
+# The web app reads the full script and substitutes the user's key there.
 set -e
 
 # ... your connect steps ...

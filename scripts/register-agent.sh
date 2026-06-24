@@ -11,22 +11,59 @@
 # process's argv (`ps`). Only the returned agent-scoped id + key are printed; the
 # user key is never echoed.
 #
+# Name/description resolution (precedence): --name/--description flag, then
+# $BAND_AGENT_NAME/$BAND_AGENT_DESCRIPTION, then an interactive prompt on the
+# controlling terminal. Prompts go to /dev/tty — never stdout — so the
+# `eval "$(...)"` capture below stays clean.
+#
 # Output (stdout — capture- / eval-able):
 #   BAND_AGENT_ID=<uuid>
 #   BAND_API_KEY=<agent-key>
 #
 # Usage:
-#   export BAND_USER_API_KEY=...             # required
-#   eval "$(scripts/register-agent.sh)"      # sets BAND_AGENT_ID + BAND_API_KEY
+#   export BAND_USER_API_KEY=...                          # required
+#   eval "$(scripts/register-agent.sh)"                   # prompts for name/desc
+#   eval "$(scripts/register-agent.sh --name 'Casa')"     # name supplied, no prompt
 #
+# Flags: --name <name>, --description <desc>
 # Env knobs: BAND_BASE_URL (default https://app.band.ai),
 #            BAND_AGENT_NAME, BAND_AGENT_DESCRIPTION.
 set -euo pipefail
 
 base="${BAND_BASE_URL:-https://app.band.ai}"; base="${base%/}"
-name="${BAND_AGENT_NAME:-Band agent}"
-desc="${BAND_AGENT_DESCRIPTION:-Agent on Band}"
+name="${BAND_AGENT_NAME:-}"
+desc="${BAND_AGENT_DESCRIPTION:-}"
+default_name="Band agent"
+default_desc="Agent on Band"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --name) name="${2:-}"; shift 2 ;;
+    --description) desc="${2:-}"; shift 2 ;;
+    --name=*) name="${1#*=}"; shift ;;
+    --description=*) desc="${1#*=}"; shift ;;
+    *) echo "register-agent.sh: unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+
 : "${BAND_USER_API_KEY:?set BAND_USER_API_KEY to a Band user API key with agent-create scope}"
+
+# Prompt for anything still missing — on the controlling terminal only, so the
+# prompt text and the typed answer never land on stdout (which is eval-captured).
+if [ -z "$name" ]; then
+  if [ -e /dev/tty ]; then
+    printf 'Agent name [%s]: ' "$default_name" >/dev/tty
+    IFS= read -r name </dev/tty || true
+  fi
+  name="${name:-$default_name}"
+fi
+if [ -z "$desc" ]; then
+  if [ -e /dev/tty ]; then
+    printf 'Agent description [%s]: ' "$default_desc" >/dev/tty
+    IFS= read -r desc </dev/tty || true
+  fi
+  desc="${desc:-$default_desc}"
+fi
 
 req_body=$(printf '{"agent":{"name":"%s","description":"%s"}}' "$name" "$desc")
 

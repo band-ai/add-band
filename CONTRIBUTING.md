@@ -33,31 +33,17 @@ upstream).
 
 Put the user's key behind the literal token **`{{BAND_USER_API_KEY}}`** in
 `bootstrap.sh` — in an env export, a CLI flag, a config write, whatever the harness
-wants. The web app reads the script and string-replaces that token with the user's
-key, so it needs no per-shape logic. `check.py` enforces the token's presence in
-the snippet it shows.
-
-### The minimal copy-paste version
-
-The web app shows a small code block — the **mini** — projected from `bootstrap.sh`,
-not a separate file:
-
-- No markers? The whole script is the mini, as long as it's short enough.
-- Longer script? Wrap the copy-paste subset in `# >>> band:mini` / `# <<< band:mini`
-  (multiple regions allowed; they concatenate in file order).
-
-Either way the mini is stripped of comments, shebangs, and blank lines, and capped
-at **15 command lines** so it fits the block. The `{{BAND_USER_API_KEY}}` token must
-land inside it. Preview exactly what ships with `python3 scripts/check.py --mini <harness>`.
+wants. The web app reads the full script and string-replaces that token with the
+user's key, so it needs no per-shape logic. `check.py` enforces the token's
+presence in `bootstrap.sh`.
 
 ## How the catalog is validated
 
 `scripts/check.py` (run in CI) classifies every top-level integration folder:
 
 - **participating** — has a `manifest.yaml` + `bootstrap.sh`. Validated:
-  required manifest fields, a valid `status`, a `bootstrap.sh` whose mini snippet
-  carries the `{{BAND_USER_API_KEY}}` placeholder and fits the 15-line cap, and
-  (via the tests) `bash -n` syntax.
+  required manifest fields, a valid `status`, a `bootstrap.sh` that carries the
+  `{{BAND_USER_API_KEY}}` placeholder, and (via the tests) `bash -n` syntax.
 - **stub** — README-only, no snippet yet. Must be listed in `STUB_ONLY` in
   `scripts/check.py`, so it's a deliberate opt-out, not a silent gap.
 
