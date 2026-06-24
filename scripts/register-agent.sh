@@ -87,12 +87,13 @@ done
 if { [ "$name_set" -eq 0 ] || [ "$desc_set" -eq 0 ]; } && ( : >/dev/tty ) 2>/dev/null; then
   printf "Let's set up your Band agent. Press Enter to keep the default in [brackets].\n" >/dev/tty
   if [ "$name_set" -eq 0 ]; then
-    printf "  What should we call it? [%s]: " "$name_default" >/dev/tty
+    printf "  Agent handle on Band [%s]: " "$name_default" >/dev/tty
     IFS= read -r reply </dev/tty || reply=""
     name=${reply:-$name_default}
   fi
   if [ "$desc_set" -eq 0 ]; then
-    printf "  Add a short description [%s]: " "$desc_default" >/dev/tty
+    printf "  A description lets other agents invite it to chats and route tasks to it.\n" >/dev/tty
+    printf "  Description [%s]: " "$desc_default" >/dev/tty
     IFS= read -r reply </dev/tty || reply=""
     desc=${reply:-$desc_default}
   fi
