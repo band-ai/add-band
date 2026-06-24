@@ -81,10 +81,10 @@ The script reads `BAND_USER_API_KEY` from env (never argv — the key never land
 
 ```
 BAND_AGENT_ID=<uuid>
-BAND_API_KEY=<agent-key>
+BAND_AGENT_API_KEY=<agent-key>
 ```
 
-Run via Bash (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
+Run via Bash (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_AGENT_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
 
 ```bash
 REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/register-agent.sh"
@@ -96,18 +96,18 @@ export BAND_AGENT_NAME="Tom"
 export BAND_AGENT_DESCRIPTION="A clever and persistent cat who loves to catch mice. Known for creative schemes and dramatic flair."
 eval "$(bash "$SCRIPT_FILE")"
 TOM_AGENT_ID="$BAND_AGENT_ID"
-TOM_API_KEY="$BAND_API_KEY"
+TOM_API_KEY="$BAND_AGENT_API_KEY"
 
 # Jerry
 export BAND_AGENT_NAME="Jerry"
 export BAND_AGENT_DESCRIPTION="A clever and friendly mouse who lives in a cozy hole. Smart, witty, and loves cheese."
 eval "$(bash "$SCRIPT_FILE")"
 JERRY_AGENT_ID="$BAND_AGENT_ID"
-JERRY_API_KEY="$BAND_API_KEY"
+JERRY_API_KEY="$BAND_AGENT_API_KEY"
 
 # Clean up — user key + tempfile not needed past this point.
 rm -f "$SCRIPT_FILE"
-unset BAND_USER_API_KEY BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAND_API_KEY
+unset BAND_USER_API_KEY BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAND_AGENT_API_KEY
 ```
 
 **Fail loudly on errors.** If either `curl … | bash` exits non-zero, or either `TOM_*` / `JERRY_*` variable comes back empty, STOP and surface the failure (including the script's stderr) to the user. Do NOT proceed to write any local files with half-provisioned agents — that leaves the user with an orphaned agent on the platform and a broken local setup. If only one of the two succeeded, tell the user explicitly so they know to clean it up on the platform before re-running.
