@@ -273,11 +273,29 @@ AskUserQuestion (single-select):
   uv run python tom_agent.py     # terminal 1
   uv run python jerry_agent.py   # terminal 2
   ```
-- **Claude, run them for me** — do these in order:
-  1. `cd <out> && uv sync` (foreground, wait for it to finish). This installs deps and lockfile; the background launches below assume it succeeded.
-  2. Start Tom with `run_in_background: true`: `cd <out> && uv run python tom_agent.py`
-  3. Start Jerry with `run_in_background: true`: `cd <out> && uv run python jerry_agent.py`
-  4. Give the user the `BashOutput` command for each background bash ID so they can tail logs.
+- **Claude, run them for me** — do these in order. Use the *exact* command form shown; small variations have broken past runs.
+
+  1. **Foreground `uv sync`** in `<out>` and wait for it to finish. If it exits non-zero, STOP and surface the error — the background launches below assume `uv sync` succeeded.
+     ```bash
+     cd <out> && uv sync
+     ```
+  2. **Start Tom in its own Bash call** with `run_in_background: true`. Capture the returned bash ID as `TOM_BASH_ID`.
+     ```bash
+     cd <out> && uv run python tom_agent.py
+     ```
+  3. **Start Jerry in a SEPARATE Bash call** with `run_in_background: true`. Capture as `JERRY_BASH_ID`.
+     ```bash
+     cd <out> && uv run python jerry_agent.py
+     ```
+  4. Wait ~8 seconds, then `BashOutput` each ID and confirm you see `Agent started: Tom` and `Agent started: Jerry` log lines (and no Python traceback). If either failed, surface the error before moving on.
+  5. Tell the user the two bash IDs and how to peek at logs (`BashOutput` with each ID).
+
+  **Don't:**
+  - Don't combine both agents into one Bash call — they're long-running processes; if you sequence them, Tom blocks forever and Jerry never starts.
+  - Don't source `.venv/bin/activate` manually — `uv run python` handles the venv.
+  - Don't substitute `python` or `python3` for `uv run python` — bare `python` picks up system Python without the project's deps.
+  - Don't use `nohup` — Claude Code's `run_in_background: true` already detaches the process.
+  - Don't try to use the Monitor tool here — these are long-lived processes, not bounded event streams.
 
 ### Step 10 — Show the user how to trigger the chase
 

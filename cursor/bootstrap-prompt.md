@@ -286,22 +286,32 @@ uv run python jerry_agent.py   # terminal 2
 
 **If option 2:**
 
-Cursor's Agent terminal doesn't keep long-lived processes alive after the agent step ends, so run the agents detached via `nohup` and capture PIDs. Do these in order:
+Cursor's Agent terminal doesn't keep long-lived processes alive after the agent step ends, so run the agents detached via `nohup` and capture PIDs. Use the *exact* command form shown — small variations have broken past runs.
 
-1. `cd <out> && uv sync` (foreground, wait for it to finish; abort the rest on non-zero exit).
-2. Launch Tom detached:
+1. **Foreground `uv sync`** in `<out>` and wait for it to finish. Abort the rest on non-zero exit and surface the error.
+   ```bash
+   cd <out> && uv sync
+   ```
+2. **Launch Tom in its own backgrounded shell** (separate command, not combined with Jerry):
    ```bash
    cd <out> && nohup uv run python tom_agent.py > tom.log 2>&1 & echo "TOM_PID=$!"
    ```
-3. Launch Jerry detached:
+3. **Launch Jerry in a SEPARATE backgrounded shell**:
    ```bash
    cd <out> && nohup uv run python jerry_agent.py > jerry.log 2>&1 & echo "JERRY_PID=$!"
    ```
-4. Tell the user how to tail logs and how to kill the processes when they're done:
+4. After ~8 seconds, run `tail -n 30 <out>/tom.log <out>/jerry.log` and confirm you see `Agent started: Tom` and `Agent started: Jerry` (and no Python traceback). If either failed, surface the error before moving on.
+5. Tell the user how to tail logs and how to kill the processes when they're done:
    ```bash
    tail -f <out>/tom.log <out>/jerry.log    # watch
    kill <TOM_PID> <JERRY_PID>               # stop
    ```
+
+**Don't:**
+- Don't combine both agents into one shell command — they're long-running; if you sequence them, Tom blocks forever and Jerry never starts.
+- Don't source `.venv/bin/activate` manually — `uv run python` handles the venv.
+- Don't substitute `python` or `python3` for `uv run python` — bare `python` picks up system Python without the project's deps.
+- Don't drop the `> tom.log 2>&1 &` / `> jerry.log 2>&1 &` suffix — without it Cursor's terminal will block on the process or lose stdout.
 
 ### Step 10 — Show the user how to trigger the chase
 
