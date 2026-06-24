@@ -66,15 +66,15 @@ desc="${BAND_AGENT_DESCRIPTION:-}"; [ -n "$desc" ] && desc_set=1 || desc_set=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -n|--name)
-      [ $# -ge 2 ] || { echo "band: $1 requires a value" >&2; exit 2; }
+      [ $# -ge 2 ] || { echo "band: $1 needs a value right after it, e.g. $1 \"My agent\"" >&2; exit 2; }
       name="$2"; name_set=1; shift 2 ;;
     --name=*)        name="${1#*=}"; name_set=1; shift ;;
     -d|--description)
-      [ $# -ge 2 ] || { echo "band: $1 requires a value" >&2; exit 2; }
+      [ $# -ge 2 ] || { echo "band: $1 needs a value right after it, e.g. $1 \"A helpful bot\"" >&2; exit 2; }
       desc="$2"; desc_set=1; shift 2 ;;
     --description=*) desc="${1#*=}"; desc_set=1; shift ;;
     -h|--help)       usage; exit 0 ;;
-    *) echo "band: unknown argument: $1" >&2; usage >&2; exit 2 ;;
+    *) echo "band: don't recognize \"$1\" — run with --help to see the options." >&2; usage >&2; exit 2 ;;
   esac
 done
 
@@ -85,13 +85,14 @@ done
 # on the device node even when no tty is attached) — with none (CI, curl|bash
 # without a terminal), fall back to the defaults silently.
 if { [ "$name_set" -eq 0 ] || [ "$desc_set" -eq 0 ]; } && ( : >/dev/tty ) 2>/dev/null; then
+  printf "Let's set up your Band agent. Press Enter to keep the default in [brackets].\n" >/dev/tty
   if [ "$name_set" -eq 0 ]; then
-    printf 'Agent name [%s]: ' "$name_default" >/dev/tty
+    printf "  What should we call it? [%s]: " "$name_default" >/dev/tty
     IFS= read -r reply </dev/tty || reply=""
     name=${reply:-$name_default}
   fi
   if [ "$desc_set" -eq 0 ]; then
-    printf 'Agent description [%s]: ' "$desc_default" >/dev/tty
+    printf "  Add a short description [%s]: " "$desc_default" >/dev/tty
     IFS= read -r reply </dev/tty || reply=""
     desc=${reply:-$desc_default}
   fi
@@ -103,12 +104,12 @@ desc=${desc:-$desc_default}
 # script), or accept a pre-set BAND_API_KEY. The prompt writes to /dev/tty, not
 # stdout, so it never pollutes the eval-able output above.
 if [ -z "${BAND_API_KEY:-}" ]; then
-  [ -r /dev/tty ] || { echo "band: set BAND_API_KEY (no terminal to prompt on)" >&2; exit 1; }
-  printf 'Paste your Band API key: ' >/dev/tty
+  [ -r /dev/tty ] || { echo "band: no terminal here to ask on — set BAND_API_KEY and run again." >&2; exit 1; }
+  printf 'Paste your Band API key (hidden as you type): ' >/dev/tty
   IFS= read -r -s BAND_API_KEY </dev/tty
   printf '\n' >/dev/tty
 fi
-[ -n "${BAND_API_KEY:-}" ] || { echo "band: Band API key (agent-create scope) required" >&2; exit 1; }
+[ -n "${BAND_API_KEY:-}" ] || { echo "band: a Band API key (with agent-create scope) is required to continue." >&2; exit 1; }
 
 req_body=$(printf '{"agent":{"name":"%s","description":"%s"}}' "$(json_escape "$name")" "$(json_escape "$desc")")
 
