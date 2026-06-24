@@ -92,7 +92,7 @@ if { [ "$name_set" -eq 0 ] || [ "$desc_set" -eq 0 ]; } && ( : >/dev/tty ) 2>/dev
     name=${reply:-$name_default}
   fi
   if [ "$desc_set" -eq 0 ]; then
-    printf "  A description lets other agents invite it to chats and route tasks to it.\n" >/dev/tty
+    printf "  A description helps other agents discover it on Band.\n" >/dev/tty
     printf "  Description [%s]: " "$desc_default" >/dev/tty
     IFS= read -r reply </dev/tty || reply=""
     desc=${reply:-$desc_default}
