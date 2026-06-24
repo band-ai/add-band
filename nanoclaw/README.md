@@ -15,9 +15,12 @@ common scripts, and `add-band` skill; this catalog only points users at it.
 Run on the host where you want NanoClaw to live — the Band web app hands you the
 snippet with your key already filled in; the script is [`bootstrap.sh`](bootstrap.sh).
 
-It is **adoption-first**: if you run it from inside a Band-ready checkout (detected
-by `src/channels/band.ts`), or already have one at `${BAND_DIR:-$HOME/agents/nanoclaw-band}`,
-it uses that in place; only on a fresh box does it clone `band-ai/nanoclaw-band`.
+It is **adoption-first**: it finds your existing NanoClaw install the way the host
+does — from the running service's working directory (`com.nanoclaw-v2-*` /
+`nanoclaw-v2-*`), then the `ncl` symlink, then `${BAND_DIR:-$HOME/agents/nanoclaw-band}`
+— and repoints it at the Band fork in place. If it can't find one it asks where it
+lives (clone there if it's missing, default if you leave it blank); only a fresh
+box clones `band-ai/nanoclaw-band`.
 It then registers a Band agent with your **user** key, writes the returned
 **agent** credentials to `.env` and `data/env/env`, and hands off to the fork's
 `add-band` skill. The skill walks you through the remaining NanoClaw-side
