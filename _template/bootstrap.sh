@@ -11,9 +11,9 @@
 # copy-pasted run still works. Never bake the key into this committed file.
 set -e
 
-# Acquire the Band user API key: env first (the web app's snippet exports it),
-# else an interactive prompt. Reusable as-is.
-export BAND_USER_API_KEY="${BAND_USER_API_KEY:-}"
+# Acquire the Band user API key: env first (the web app's snippet exports it as
+# BAND_USER_API_KEY, or BAND_API_KEY), else an interactive prompt. Reusable as-is.
+export BAND_USER_API_KEY="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
 if [ -z "$BAND_USER_API_KEY" ] && [ -e /dev/tty ]; then
   printf 'Band user API key: ' >/dev/tty
   IFS= read -rs BAND_USER_API_KEY </dev/tty || true

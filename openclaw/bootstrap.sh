@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
-# The web app's snippet exports BAND_USER_API_KEY; fall back to a prompt.
-BAND_USER_API_KEY="${BAND_USER_API_KEY:-}"
+# The web app's snippet exports BAND_USER_API_KEY (or BAND_API_KEY); else prompt.
+BAND_USER_API_KEY="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
 if [ -z "$BAND_USER_API_KEY" ]; then
   read -r -s -p "Enter your Band API key: " BAND_USER_API_KEY </dev/tty
   echo >&2
