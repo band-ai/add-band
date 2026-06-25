@@ -21,8 +21,41 @@ fi
 [ -n "${BAND_API_KEY:-}" ] || { echo "Band API key required" >&2; exit 1; }
 export BAND_API_KEY
 
-# Install the band platform (it ships the add-band skill) into the gateway's own Python.
-hermes_python="$(hermes --version 2>&1 | sed -n 's/^Project: //p')/venv/bin/python"
+# Find the gateway venv's Python (NOT HERMES_HOME — that's the config/data dir, a
+# separate location from the code checkout where venv/bin/python lives). This mirrors
+# how Hermes's own installer + uninstaller locate the install: the installer writes
+# the on-PATH `hermes` as a shim that `exec`s "<root>/venv/bin/hermes", and the
+# uninstaller's get_project_root() treats <root>/venv as the install to remove.
+#   installer (setup_path):         https://github.com/NousResearch/hermes-agent/blob/main/scripts/install.sh
+#   uninstaller (get_project_root): https://github.com/NousResearch/hermes-agent/blob/main/hermes_cli/uninstall.py
+# Discovery, most-robust first: (1) follow the `hermes` launcher on PATH to the venv
+# hermes it runs (older installs symlink straight to it) and take its sibling python;
+# (2) last-ditch, scrape the start-anchored `Project:` line `hermes --version` prints
+# (the code root) and append venv/bin/python, so installs where only that still works
+# don't regress.
+hermes_python=""
+hermes_launcher="$(command -v hermes)"
+# Resolve symlinks one level at a time (portable; no GNU `readlink -f`).
+while [ -L "$hermes_launcher" ]; do
+  hermes_target="$(readlink "$hermes_launcher")"
+  case "$hermes_target" in
+    /*) hermes_launcher="$hermes_target" ;;
+    *)  hermes_launcher="$(dirname "$hermes_launcher")/$hermes_target" ;;
+  esac
+done
+# A symlink resolves straight onto <root>/venv/bin/hermes; a shim is a script that
+# execs it — pull the quoted exec target out of the file in that case.
+hermes_venv_bin=""
+case "$hermes_launcher" in
+  */venv/bin/hermes) hermes_venv_bin="$hermes_launcher" ;;
+  *) hermes_venv_bin="$(sed -n 's/^exec "\([^"]*\)".*/\1/p' "$hermes_launcher" 2>/dev/null | head -n1)" ;;
+esac
+case "$hermes_venv_bin" in
+  */venv/bin/hermes) hermes_python="$(dirname "$hermes_venv_bin")/python" ;;
+esac
+# Last-ditch fallback: the start-anchored `Project:` line from `hermes --version`.
+[ -x "${hermes_python:-}" ] \
+  || hermes_python="$(hermes --version 2>&1 | sed -n 's/^Project: //p')/venv/bin/python"
 [ -x "$hermes_python" ] || { echo "could not find Hermes Python at $hermes_python"; exit 1; }
 BAND_HERMES_REF="${BAND_HERMES_REF:-main}"
 # TODO(production release): switch this to a pinned PyPI install
