@@ -25,9 +25,10 @@ ROOT = Path(__file__).resolve().parent.parent
 # Top-level dirs that are not integrations.
 STRUCTURAL = {"scripts", "tests"}
 
-# README-only stubs with no bootstrap yet. Listing one here is a deliberate
-# opt-out; the drift test fails for any unclassified folder.
-STUB_ONLY: set[str] = set()
+# Stub folders with no manifest.yaml + bootstrap.sh pair yet (e.g. only a
+# bootstrap-prompt.md). Listing one here is a deliberate opt-out; the drift test
+# fails for any unclassified folder.
+STUB_ONLY: set[str] = {"claude", "codex", "cursor"}
 
 REQUIRED_MANIFEST_FIELDS = {"name", "repo", "connects_via", "status", "summary"}
 VALID_STATUSES = {"available", "planned"}
