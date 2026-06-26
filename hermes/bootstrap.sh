@@ -46,10 +46,45 @@ if [ -z "${BAND_AGENT_NAME:-}" ]; then
 fi
 export BAND_AGENT_NAME
 
-# Mint the Band agent using the helper bundled with the add-band skill.
+# Mint the Band agent. The dependency-light `register-agent.sh` bundled with the
+# add-band skill — the shared canonical helper, also used by the nanoclaw/openclaw
+# bootstraps — does the registration and prints agent-scoped creds on stdout. The
+# only Hermes-specific glue stays here: skipping a re-mint on re-run, and persisting
+# the creds to the gateway .env through hermes_cli's env writer. Once band-sdk
+# publishes `band.cli.register_agent`, swap the helper call for the SDK CLI — it must
+# keep the helper's browser-like registration headers (User-Agent, Accept,
+# Accept-Language) or app.band.ai can Cloudflare-1010 sparse script fingerprints
+# even with a valid key.
 skill_dir="$("$hermes_python" -c 'import pathlib, hermes_band_platform; print(pathlib.Path(hermes_band_platform.__path__[0]) / "skills" / "add-band")')"
-"$hermes_python" "$skill_dir/scripts/register_agent.py"
-unset BAND_API_KEY
+
+# Idempotent: if the gateway already has an agent id persisted, don't mint another.
+band_env="$(hermes config env-path 2>/dev/null || true)"
+if [ -n "$band_env" ] && [ -f "$band_env" ] && grep -q '^BAND_AGENT_ID=' "$band_env"; then
+  echo "Band agent already registered; skipping registration."
+else
+  # Keep registration non-interactive: BAND_AGENT_NAME is already set above; pin a
+  # description default too so the helper doesn't drop into its /dev/tty prompt.
+  : "${BAND_AGENT_DESCRIPTION:=Hermes agent on Band}"
+  export BAND_AGENT_DESCRIPTION
+  # The helper reads BAND_API_KEY from the env (never argv) and prints only the
+  # agent-scoped BAND_AGENT_ID + BAND_AGENT_API_KEY — never the user key.
+  creds="$(bash "$skill_dir/scripts/register-agent.sh")" \
+    || { echo "Band registration failed (see the error above)." >&2; exit 1; }
+  eval "$creds"
+  [ -n "${BAND_AGENT_ID:-}" ] && [ -n "${BAND_AGENT_API_KEY:-}" ] \
+    || { echo "registration returned no agent credentials" >&2; exit 1; }
+  # Persist agent-scoped creds via Hermes's env writer (managed-scope/denylist/ASCII
+  # guards live there). The agent key is stored under BAND_API_KEY — the name the
+  # band plugin reads at runtime — and passed via the env, never argv.
+  BAND_AGENT_ID="$BAND_AGENT_ID" BAND_AGENT_API_KEY="$BAND_AGENT_API_KEY" "$hermes_python" <<'PY'
+import os
+from hermes_cli.config import save_env_value
+save_env_value("BAND_AGENT_ID", os.environ["BAND_AGENT_ID"])
+save_env_value("BAND_API_KEY", os.environ["BAND_AGENT_API_KEY"])
+PY
+fi
+# The user key (and the agent key we just persisted) must not linger into handoff.
+unset BAND_API_KEY BAND_AGENT_API_KEY
 
 # `hermes plugins enable` only sees directory plugins, not entry-point packages
 # like band, so it prints a benign "not installed or bundled" on stdout and fails;

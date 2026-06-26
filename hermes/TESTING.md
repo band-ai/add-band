@@ -88,10 +88,11 @@ scripts/local-bootstrap.sh hermes
 1. The bootstrap installs the plugin package from the Git ref into the gateway
    Python, which also installs `band-sdk`. A production PR should switch this to
    a pinned PyPI package only after PyPI is published and verified.
-2. The bundled `scripts/register_agent.py` helper mints the agent and Hermes's
-   env writer saves only `BAND_AGENT_ID` + `BAND_API_KEY` (the agent-scoped key,
-   replacing your broad key of the same name) to `$HERMES_HOME/.env`; the broad
-   shell value is then unset. The helper sends browser-like registration headers
+2. The bundled `scripts/register-agent.sh` helper mints the agent and prints the
+   agent-scoped pair; the bootstrap saves only `BAND_AGENT_ID` + `BAND_API_KEY`
+   (the agent-scoped key, replacing your broad key of the same name) to
+   `$HERMES_HOME/.env` through Hermes's env writer; the broad shell value is then
+   unset. The helper sends browser-like registration headers
    because sparse script fingerprints can trip Cloudflare 1010 at `app.band.ai`;
    preserve that behavior when replacing it with the SDK CLI.
    Confirm: `grep -E 'BAND_AGENT_ID|BAND_API_KEY' "$HERMES_HOME/.env"`.
@@ -135,7 +136,7 @@ grep BAND_HUB_ROOM "$HERMES_HOME/.env"   # a non-empty UUID ⇒ hub created
 
 ## Pass/fail checklist
 
-- [ ] `register_agent.py` → `BAND_AGENT_ID` + `BAND_API_KEY` (agent-scoped) saved in `$HERMES_HOME/.env`; broad Band key gone from the shell
+- [ ] `register-agent.sh` → `BAND_AGENT_ID` + `BAND_API_KEY` (agent-scoped) saved in `$HERMES_HOME/.env`; broad Band key gone from the shell
 - [ ] `verify_install.py` → `success: true` (package + sdk + entry point/manifest + enabled + creds)
 - [ ] `verify_gateway.py` → hub present, Band connection signals, no failure signal
 - [ ] `BAND_HUB_ROOM` is a non-empty UUID
@@ -184,7 +185,7 @@ unset HERMES_HOME HERMES_PY BAND_API_KEY
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `register_agent.py` exits with HTTP 401/403 | Band API key lacks external-agent create permission, or it is wrong. Use an Enterprise key. |
+| `register-agent.sh` exits with HTTP 401/403 | Band API key lacks external-agent create permission, or it is wrong. Use an Enterprise key. |
 | `HERMES_PY` is empty / `python: not found` | `hermes --version` didn't print a `Project:` line. Set `HERMES_PY` to the gateway's venv python by hand. |
 | `hermes chat -s add-band` cannot find the skill | Confirm the package installed into the gateway Python and `hermes_band_platform/skills/add-band/SKILL.md` is present in that package. |
 | Git-ref package install fails | Confirm `BAND_HERMES_REF` points to a public branch/tag/commit. Switch to pinned PyPI only after publication is verified. |
