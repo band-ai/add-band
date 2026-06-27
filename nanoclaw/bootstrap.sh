@@ -61,8 +61,10 @@ else
   git clone --depth 1 --branch main "$NANOCLAW_REPO" "$NANOCLAW_HOME"
 fi
 cd "$NANOCLAW_HOME"
-export BAND_AGENT_NAME="${BAND_AGENT_NAME:-MyNanoClawAgent}"
-export BAND_AGENT_DESCRIPTION="${BAND_AGENT_DESCRIPTION:-NanoClaw agent on Band}"
+# Don't default BAND_AGENT_NAME/DESCRIPTION here. register-agent.sh prompts for a
+# unique name when they're unset; a fixed default ("MyNanoClawAgent") collides on
+# the second install → HTTP 422 "name has already been taken". A pre-set
+# BAND_AGENT_NAME/BAND_AGENT_DESCRIPTION (exported by the caller) is still honored.
 # register-agent.sh prints `BAND_AGENT_ID=…` / `BAND_AGENT_API_KEY=…` on success.
 # `eval "$(…)"` does not trip set -e if the helper fails, so assert the creds landed.
 eval "$(bash .claude/skills/add-band/scripts/register-agent.sh)"
