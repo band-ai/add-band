@@ -22,47 +22,58 @@ if [ -z "${BAND_API_KEY:-}" ]; then
 fi
 [ -n "${BAND_API_KEY:-}" ] || { echo "Band API key required" >&2; exit 1; }
 export BAND_API_KEY
-export NANOCLAW_HOME="${NANOCLAW_HOME:-$HOME/nanoclaw-band}"
 export NANOCLAW_REPO="${NANOCLAW_REPO:-https://github.com/band-ai/nanoclaw-band}"
-if [ -d "$NANOCLAW_HOME/.git" ]; then if git -C "$NANOCLAW_HOME" remote get-url upstream >/dev/null 2>&1; then git -C "$NANOCLAW_HOME" remote set-url upstream "$NANOCLAW_REPO"; else git -C "$NANOCLAW_HOME" remote add upstream "$NANOCLAW_REPO"; fi; git -C "$NANOCLAW_HOME" pull --ff-only upstream main; else git clone --depth 1 --branch main "$NANOCLAW_REPO" "$NANOCLAW_HOME"; fi
-cd "$NANOCLAW_HOME"
 
-# Detect an existing configured Band install so re-runs are idempotent.
-# Primary signal: Band creds already in .env — means we already registered an agent
-# and must not create a duplicate.  Secondary context: the data/v2.db probe is the
-# same one NanoClaw's own uninstaller uses to recognize a configured install —
-# detectExistingInstall() in
-# https://github.com/nanocoai/nanoclaw/blob/main/setup/uninstall/scan.ts
-_existing_agent_id=""
-if [ -f .env ] && grep -qE '^BAND_AGENT_ID=.+' .env 2>/dev/null && grep -qE '^BAND_AGENT_API_KEY=.+' .env 2>/dev/null; then
-  _existing_agent_id="$(grep -E '^BAND_AGENT_ID=' .env | tail -1 | cut -d= -f2-)"
+# Pick where the Band-ready NanoClaw checkout lives. We don't clone into a
+# hidden $HOME dir behind your back — prefer the current directory. git + tar
+# only; no gh or other tooling assumed.
+#   - NANOCLAW_HOME set            → honor it (explicit override / escape hatch)
+#   - pwd is Band-ready            → use it in place
+#   - pwd is a NanoClaw clone      → make it Band-ready in place (see below)
+#   - pwd is empty                 → clone the fork right here
+#   - pwd is non-empty (anything else) → clone into ./nanoclaw-band (never clobber)
+band_ready() { [ -f "$1/.claude/skills/add-band/scripts/register-agent.sh" ]; }
+is_nanoclaw() { [ -e "$1/.git" ] && { [ -f "$1/nanoclaw.sh" ] || [ -f "$1/container/agent-runner/package.json" ]; }; }
+if [ -z "${NANOCLAW_HOME:-}" ]; then
+  if band_ready "$PWD" || is_nanoclaw "$PWD"; then NANOCLAW_HOME="$PWD"
+  elif [ -z "$(ls -A . 2>/dev/null)" ]; then NANOCLAW_HOME="$PWD"
+  else NANOCLAW_HOME="$PWD/nanoclaw-band"; fi
 fi
-
-if [ -n "$_existing_agent_id" ]; then
-  # Already configured — reuse existing creds; skip registration entirely.
-  [ -f data/v2.db ] && echo "Existing NanoClaw install detected (data/v2.db present)."
-  echo "Reusing existing agent ${_existing_agent_id}. Skipping registration."
-  # Export creds from .env so the rest of the session and the skill have them.
-  export BAND_AGENT_ID="$_existing_agent_id"
-  export BAND_AGENT_API_KEY="$(grep -E '^BAND_AGENT_API_KEY=' .env | tail -1 | cut -d= -f2-)"
-  unset BAND_API_KEY
-  # Refresh data/env/env in case it drifted from .env.
-  mkdir -p data/env && cp .env data/env/env
+export NANOCLAW_HOME
+if band_ready "$NANOCLAW_HOME"; then
+  : # already has the add-band skill — use it in place
+elif is_nanoclaw "$NANOCLAW_HOME"; then
+  # An existing NanoClaw clone without the Band skill. The fork has diverged
+  # (its own history), so we don't pull/merge it — that would conflict or
+  # disturb your tree. Add the fork as a remote, fetch it (non-destructive),
+  # and extract just the add-band skill into the working tree (no index churn,
+  # no merge) so this script and /add-band have what they need.
+  git -C "$NANOCLAW_HOME" remote get-url band >/dev/null 2>&1 \
+    || git -C "$NANOCLAW_HOME" remote add band "$NANOCLAW_REPO"
+  git -C "$NANOCLAW_HOME" fetch --depth 1 band main
+  git -C "$NANOCLAW_HOME" archive band/main .claude/skills/add-band | tar -x -C "$NANOCLAW_HOME"
+  band_ready "$NANOCLAW_HOME" || { echo "band: fetched the fork but the add-band skill didn't land — clone the fork instead." >&2; exit 1; }
+elif [ -e "$NANOCLAW_HOME" ] && [ -n "$(ls -A "$NANOCLAW_HOME" 2>/dev/null)" ]; then
+  echo "band: $NANOCLAW_HOME exists but isn't a NanoClaw checkout." >&2
+  echo "      Re-run from an empty directory, or set NANOCLAW_HOME to where the fork should live." >&2
+  exit 1
 else
-  export BAND_AGENT_NAME="${BAND_AGENT_NAME:-MyNanoClawAgent}"
-  export BAND_AGENT_DESCRIPTION="${BAND_AGENT_DESCRIPTION:-NanoClaw agent on Band}"
-  # register-agent.sh prints `BAND_AGENT_ID=…` / `BAND_AGENT_API_KEY=…` on success.
-  # `eval "$(…)"` does not trip set -e if the helper fails, so assert the creds landed.
-  eval "$(bash .claude/skills/add-band/scripts/register-agent.sh)"
-  [ -n "${BAND_AGENT_ID:-}" ] && [ -n "${BAND_AGENT_API_KEY:-}" ] || { echo "agent registration failed (no credentials returned)" >&2; exit 1; }
-  unset BAND_API_KEY
-  export BAND_AGENT_ID BAND_AGENT_API_KEY
-  # Only append if these keys are not already present (guards against partial writes).
-  grep -qE '^BAND_AGENT_ID=' .env 2>/dev/null || echo "BAND_AGENT_ID=$BAND_AGENT_ID" >> .env
-  grep -qE '^BAND_AGENT_API_KEY=' .env 2>/dev/null || echo "BAND_AGENT_API_KEY=$BAND_AGENT_API_KEY" >> .env
-  mkdir -p data/env && cp .env data/env/env
-  echo "Registered agent $BAND_AGENT_ID. Agent credentials written to .env."
+  git clone --depth 1 --branch main "$NANOCLAW_REPO" "$NANOCLAW_HOME"
 fi
+cd "$NANOCLAW_HOME"
+# Don't default BAND_AGENT_NAME/DESCRIPTION here. register-agent.sh prompts for a
+# unique name when they're unset; a fixed default ("MyNanoClawAgent") collides on
+# the second install → HTTP 422 "name has already been taken". A pre-set
+# BAND_AGENT_NAME/BAND_AGENT_DESCRIPTION (exported by the caller) is still honored.
+# register-agent.sh prints `BAND_AGENT_ID=…` / `BAND_AGENT_API_KEY=…` on success.
+# `eval "$(…)"` does not trip set -e if the helper fails, so assert the creds landed.
+eval "$(bash .claude/skills/add-band/scripts/register-agent.sh)"
+[ -n "${BAND_AGENT_ID:-}" ] && [ -n "${BAND_AGENT_API_KEY:-}" ] || { echo "agent registration failed (no credentials returned)" >&2; exit 1; }
+unset BAND_API_KEY
+export BAND_AGENT_ID BAND_AGENT_API_KEY
+{ echo "BAND_AGENT_ID=$BAND_AGENT_ID"; echo "BAND_AGENT_API_KEY=$BAND_AGENT_API_KEY"; } >> .env
+mkdir -p data/env && cp .env data/env/env
+echo "Registered agent $BAND_AGENT_ID. Agent credentials written to .env."
 
 # Hand off to the fork's skill; print it if the claude CLI isn't installed.
 if command -v claude >/dev/null; then claude /add-band < /dev/tty; else cat .claude/skills/add-band/SKILL.md; fi
