@@ -22,9 +22,44 @@ if [ -z "${BAND_API_KEY:-}" ]; then
 fi
 [ -n "${BAND_API_KEY:-}" ] || { echo "Band API key required" >&2; exit 1; }
 export BAND_API_KEY
-export NANOCLAW_HOME="${NANOCLAW_HOME:-$HOME/nanoclaw-band}"
 export NANOCLAW_REPO="${NANOCLAW_REPO:-https://github.com/band-ai/nanoclaw-band}"
-if [ -d "$NANOCLAW_HOME/.git" ]; then if git -C "$NANOCLAW_HOME" remote get-url upstream >/dev/null 2>&1; then git -C "$NANOCLAW_HOME" remote set-url upstream "$NANOCLAW_REPO"; else git -C "$NANOCLAW_HOME" remote add upstream "$NANOCLAW_REPO"; fi; git -C "$NANOCLAW_HOME" pull --ff-only upstream main; else git clone --depth 1 --branch main "$NANOCLAW_REPO" "$NANOCLAW_HOME"; fi
+
+# Pick where the Band-ready NanoClaw checkout lives. We don't clone into a
+# hidden $HOME dir behind your back — prefer the current directory. git + tar
+# only; no gh or other tooling assumed.
+#   - NANOCLAW_HOME set            → honor it (explicit override / escape hatch)
+#   - pwd is Band-ready            → use it in place
+#   - pwd is a NanoClaw clone      → make it Band-ready in place (see below)
+#   - pwd is empty                 → clone the fork right here
+#   - pwd is non-empty (anything else) → clone into ./nanoclaw-band (never clobber)
+band_ready() { [ -f "$1/.claude/skills/add-band/scripts/register-agent.sh" ]; }
+is_nanoclaw() { [ -e "$1/.git" ] && { [ -f "$1/nanoclaw.sh" ] || [ -f "$1/container/agent-runner/package.json" ]; }; }
+if [ -z "${NANOCLAW_HOME:-}" ]; then
+  if band_ready "$PWD" || is_nanoclaw "$PWD"; then NANOCLAW_HOME="$PWD"
+  elif [ -z "$(ls -A . 2>/dev/null)" ]; then NANOCLAW_HOME="$PWD"
+  else NANOCLAW_HOME="$PWD/nanoclaw-band"; fi
+fi
+export NANOCLAW_HOME
+if band_ready "$NANOCLAW_HOME"; then
+  : # already has the add-band skill — use it in place
+elif is_nanoclaw "$NANOCLAW_HOME"; then
+  # An existing NanoClaw clone without the Band skill. The fork has diverged
+  # (its own history), so we don't pull/merge it — that would conflict or
+  # disturb your tree. Add the fork as a remote, fetch it (non-destructive),
+  # and extract just the add-band skill into the working tree (no index churn,
+  # no merge) so this script and /add-band have what they need.
+  git -C "$NANOCLAW_HOME" remote get-url band >/dev/null 2>&1 \
+    || git -C "$NANOCLAW_HOME" remote add band "$NANOCLAW_REPO"
+  git -C "$NANOCLAW_HOME" fetch --depth 1 band main
+  git -C "$NANOCLAW_HOME" archive band/main .claude/skills/add-band | tar -x -C "$NANOCLAW_HOME"
+  band_ready "$NANOCLAW_HOME" || { echo "band: fetched the fork but the add-band skill didn't land — clone the fork instead." >&2; exit 1; }
+elif [ -e "$NANOCLAW_HOME" ] && [ -n "$(ls -A "$NANOCLAW_HOME" 2>/dev/null)" ]; then
+  echo "band: $NANOCLAW_HOME exists but isn't a NanoClaw checkout." >&2
+  echo "      Re-run from an empty directory, or set NANOCLAW_HOME to where the fork should live." >&2
+  exit 1
+else
+  git clone --depth 1 --branch main "$NANOCLAW_REPO" "$NANOCLAW_HOME"
+fi
 cd "$NANOCLAW_HOME"
 export BAND_AGENT_NAME="${BAND_AGENT_NAME:-MyNanoClawAgent}"
 export BAND_AGENT_DESCRIPTION="${BAND_AGENT_DESCRIPTION:-NanoClaw agent on Band}"
