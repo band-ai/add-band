@@ -53,6 +53,13 @@ TARGETS = [
         SIBLINGS / "nanoclaw-thenvoi",
         Path(".claude/skills/add-band/scripts/register-agent.sh"),
     ),
+    # The Hermes plugin vendors the bash helper under the package's own skills
+    # tree (not .claude/); its bootstrap.sh runs this canonical helper directly.
+    Target(
+        "hermes-band-platform",
+        SIBLINGS / "hermes-band-platform",
+        Path("hermes_band_platform/skills/add-band/scripts/register-agent.sh"),
+    ),
 ]
 
 

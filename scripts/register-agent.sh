@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # Register a Band external agent from a Band API key, using only curl + a JSON
-# parser. A portable, dependency-light alternative to the Hermes plugin's
-# hermes_band_platform/skills/add-band/scripts/register_agent.py: no Python SDK,
-# no hermes_cli, no cloned repo — so a bootstrap can mint a Band agent before it
-# installs anything (the same shape openclaw/bootstrap.sh uses).
+# parser — no Python SDK, no hermes_cli, no cloned repo — so a bootstrap can mint
+# a Band agent before it installs anything (the shape the nanoclaw/openclaw and
+# Hermes bootstraps use). The Hermes bootstrap evals this helper's output and
+# persists the agent-scoped pair through hermes_cli's env writer.
 #
 # Security: the key is read from $BAND_API_KEY (or its alias $BAND_USER_API_KEY,
 # never an argument) and handed to
@@ -33,7 +33,7 @@
 set -euo pipefail
 
 name_default="Band agent"
-desc_default="Agent on Band"
+desc_default="An agent on the Band platform."
 
 usage() {
   cat <<USAGE
