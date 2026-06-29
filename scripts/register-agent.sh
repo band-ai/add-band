@@ -33,7 +33,7 @@
 set -euo pipefail
 
 name_default="Band agent"
-desc_default="Agent on Band"
+desc_default="An agent on the Band platform."
 
 usage() {
   cat <<USAGE

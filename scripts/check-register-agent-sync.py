@@ -53,6 +53,13 @@ TARGETS = [
         SIBLINGS / "nanoclaw-thenvoi",
         Path(".claude/skills/add-band/scripts/register-agent.sh"),
     ),
+    # The Hermes plugin vendors the bash helper alongside its Python
+    # register_agent.py, under the package's own skills tree (not .claude/).
+    Target(
+        "hermes-band-platform",
+        SIBLINGS / "hermes-band-platform",
+        Path("hermes_band_platform/skills/add-band/scripts/register-agent.sh"),
+    ),
 ]
 
 
