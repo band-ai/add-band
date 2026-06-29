@@ -16,13 +16,9 @@ and the mechanism (skill / plugin / MCP server / SDK adapter / CLI).
 
 ## Bootstrap
 
-The copy-paste snippet, run where the agent runs (the web app fills in the key):
-
-```bash
-# paste the contents of bootstrap.sh here (or a tidied version of it)
-```
-
-This mirrors [`bootstrap.sh`](bootstrap.sh) — the source the web app reads.
+Say where and how to run it (the host/context) and what it does at a high level — but
+**link to [`bootstrap.sh`](bootstrap.sh); don't paste a copy of it.** The web app serves
+the real snippet and the user pastes their key when it prompts, so a duplicate here only drifts.
 
 ## Source
 

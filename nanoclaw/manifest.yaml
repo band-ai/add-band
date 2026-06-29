@@ -1,6 +1,6 @@
 # Catalog metadata for the NanoClaw integration.
 name: NanoClaw
-repo: https://github.com/thenvoi/nanoclaw-thenvoi
-connects_via: add-band skill (version-pinned tag merge)
+repo: https://github.com/band-ai/nanoclaw-band
+connects_via: Band-ready NanoClaw fork + add-band setup skill
 status: available
-summary: Connect a NanoClaw agent to Band — register an agent, then the add-band skill merges the Band channel tag and wires the room.
+summary: Connect a NanoClaw agent to Band — clone the Band-ready fork, register an agent, then let the fork's add-band skill guide setup and room wiring.

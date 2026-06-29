@@ -14,28 +14,57 @@ access control — only messages Band delivers reach the agent.
 
 ## Bootstrap
 
-Run on the host where your Hermes gateway runs. The Band web app hands you the
-snippet with your key already filled in — the script is [`bootstrap.sh`](bootstrap.sh).
+Run on the host where your Hermes gateway runs. The Band web app gives you a
+`curl … | bash` one-liner and your Band API key; run it and paste the key when the
+script prompts. The script ([`bootstrap.sh`](bootstrap.sh)) does only the two things
+bash is uniquely placed to do, then hands off to the agent:
 
-> Credentials: set `BAND_USER_API_KEY` to have the skill register an agent for
-> you, or create one at `app.band.ai/agents/new` and use `BAND_AGENT_ID` +
-> `BAND_API_KEY` instead. See [Prereqs](#prereqs).
+1. **Install** the `band` plugin (which ships the `add-band` skill) into the
+   gateway's own uv-managed Python from a Git ref. A production PR should switch
+   this to a pinned PyPI install only after `hermes-band-platform` is published
+   and verified on PyPI.
+2. **Mint** a Band agent from your Band API key — read by the package's
+   temporary bundled `skills/add-band/scripts/register_agent.py` helper run by
+   the gateway Python, so the broad key never reaches the agent's LLM. The
+   agent-scoped `BAND_AGENT_ID` + `BAND_API_KEY` it returns **replace** your key
+   in the gateway `.env` (same `BAND_API_KEY` name, now narrowly scoped); the
+   broad shell value is then dropped. Replace the helper with the SDK CLI
+   once `band.cli.register_agent` is published in `band-sdk`, but keep the
+   helper's browser-like registration headers in that CLI path to avoid
+   Cloudflare 1010 on sparse script clients.
+3. **Hand off** to `hermes chat -s add-band`. The skill runs the steps that need
+   agent smarts rather than bash: it completes plugin setup, wires Band in as a
+   communication channel with context isolation, bootstraps the **Hermes Hub**,
+   and sends you the agent's first message.
 
-It pulls the official `add-band` setup skill from the plugin repo and hands it to
-Hermes, which installs the plugin into the gateway's Python, enables it,
-registers the Band agent, restarts the gateway, and verifies the hub. The skill
-is the source of truth for every step — this snippet stays thin and never goes
-stale.
+> **Pre-created agent instead?** Make one at `app.band.ai/agents/new`, save
+> `BAND_AGENT_ID` + `BAND_API_KEY` to the gateway `.env`, and drop the
+> `register_agent.py` + `unset` lines (keep the Git-ref `uv pip install` and the
+> `hermes chat -s add-band` hand-off). See [Prereqs](#prereqs).
 
 ## Source
 
 - **Repo:** [`band-ai/hermes-band-platform`](https://github.com/band-ai/hermes-band-platform)
-  — tracks the `main` branch by default; pin a tag/commit via `BAND_HERMES_REF`
-  for a reproducible install.
+  — the bootstrap installs from `BAND_HERMES_REF` (`main` by default while
+  unreleased). Pin a tag/commit for a reproducible install.
 - **Skill:** `hermes_band_platform/skills/add-band/SKILL.md` (also available as
   `hermes /add-band` once the plugin is installed).
 - **Fresh box / non-Hermes agent:** the one-shot install prompt at
   [`docs/INSTALL-PROMPT.md`](https://github.com/band-ai/hermes-band-platform/blob/main/docs/INSTALL-PROMPT.md).
+
+## Local testing
+
+To test plugin edits live, copy `bootstrap.sh` to a **git-ignored**
+`bootstrap.local.sh` and swap its install line for an editable install from your
+local clone. Run it the `curl … | bash` way (from the `add-band` repo root, with
+`HERMES_HOME` exported to isolate the test):
+
+```bash
+curl -fsSL "file://$PWD/hermes/bootstrap.local.sh" | bash
+```
+
+`scripts/local-bootstrap.sh hermes` also prefers `bootstrap.local.sh` when present.
+Full end-to-end guide: [`TESTING.md`](TESTING.md).
 
 ## Prereqs
 
@@ -43,30 +72,29 @@ stale.
   SDK has no 3.14 wheels yet).
 - Shell access as the user who owns the Hermes install.
 - A Band account and one credential path:
-  - **Recommended:** a Band user API key in `BAND_USER_API_KEY` that can create
-    external agents — the skill registers an agent and saves only the returned
+  - **Recommended:** a Band API key in `BAND_API_KEY` that can create
+    external agents — the bootstrap registers an agent and saves only the returned
     agent-scoped credentials.
   - **Manual:** a pre-created external agent from `app.band.ai/agents/new`, giving
-    you `BAND_AGENT_ID` + `BAND_API_KEY`.
+    you `BAND_AGENT_ID` + `BAND_API_KEY` to set directly.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `BAND_AGENT_ID` | ✅ (or via registration) | Band agent ID (UUID). |
-| `BAND_API_KEY` | ✅ (or via registration) | Band agent API key — authenticates the link. |
-| `BAND_USER_API_KEY` | optional | User key for one-step agent registration; removed after. |
+| `BAND_API_KEY` | ✅ | Your Band API key — paste it at the prompt. The bootstrap registers an agent and **replaces** this in the gateway `.env` with the agent-scoped key of the same name, then drops the broad shell value (it never reaches the LLM). For a pre-created agent, set its agent key here directly. |
+| `BAND_AGENT_ID` | set by registration | Band agent ID (UUID). Written by the bootstrap; set it yourself only for a pre-created agent. |
 
 Full configuration (hub pinning, allowlists, failover) is documented in the
 [plugin README](https://github.com/band-ai/hermes-band-platform#environment-variables).
 
+If you choose Hermes's directory-plugin path instead of the package install path,
+remember that directory plugins do not install Python dependencies. The setup
+flow must prompt to install `band-sdk>=1.0.0,<2.0.0` into the gateway Python and
+show a clear error if `import band` still fails.
+
 ## Verify
 
-After the gateway restarts, check the real connection signals:
-
-```bash
-grep -E '\[band\] Connected as agent|\[band\] Hub ready: room|✓ band connected' ~/.hermes/logs/gateway.log
-grep BAND_HUB_ROOM ~/.hermes/.env   # a non-empty UUID = hub created
-```
-
-Then open the auto-created **"Hermes Agent Hub"** room in Band and **@mention the
-agent** — Band has no DMs, so an un-mentioned message is ignored by design. A
-reply means you're live.
+After the gateway restarts, the Band connection surfaces in the gateway log (a
+"Connected as agent" / "Hub ready" line) and `BAND_HUB_ROOM` is set to a UUID in
+Hermes's `.env` — the skill's `verify_gateway.py` checks both for you. Then open the
+auto-created **"Hermes Agent Hub"** room in Band and **@mention the agent** — Band has
+no DMs, so an un-mentioned message is ignored by design. A reply means you're live.

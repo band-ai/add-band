@@ -25,27 +25,21 @@ so it can't go stale.
 
 ## Quickstart
 
-Connect a **Hermes** agent (other harnesses [below](#integrations)). On the host
-where your gateway runs:
+Connect a **Hermes** agent (other harnesses [below](#integrations)). The Band web app
+gives you a `curl … | bash` one-liner and your Band API key; run it on the host
+where your gateway runs and paste the key when prompted. The exact script is
+[`hermes/bootstrap.sh`](hermes/bootstrap.sh).
 
-<!-- This block mirrors hermes/bootstrap.sh. -->
-```bash
-export BAND_USER_API_KEY={{BAND_USER_API_KEY}}   # app.band.ai fills this in for you
-rm -rf /tmp/hbp
-git clone --depth 1 --branch main https://github.com/band-ai/hermes-band-platform /tmp/hbp
-hermes /add-band 2>/dev/null || cat /tmp/hbp/hermes_band_platform/skills/add-band/SKILL.md
-```
-
-**One paste → two confirmations → a connected agent.** You provide credentials when
-asked, then @mention the agent in a Band room — a reply means you're live. The Band
-web app hands you this snippet with your key already filled in. → [Hermes guide](hermes/)
+**One run → one @mention → a connected agent.** The snippet registers your agent and
+hands off to the `add-band` skill, which installs and verifies everything; then you
+@mention the agent in a Band room and a reply means you're live. → [Hermes guide](hermes/)
 
 ## Integrations
 
 | Harness | Connects via | Status | Guide |
 | --- | --- | --- | --- |
 | **Hermes** | `add-band` setup skill + `band` plugin | ✅ Available | [hermes/](hermes/) |
-| **NanoClaw** | `add-band` skill (tag merge) | ✅ Available | [nanoclaw/](nanoclaw/) |
+| **NanoClaw** | Band-ready fork + `add-band` setup skill | ✅ Available | [nanoclaw/](nanoclaw/) |
 | **OpenClaw** | openclaw CLI | ✅ Available | [openclaw/](openclaw/) |
 | _your harness_ | — | 🟡 Wanted | [add one →](CONTRIBUTING.md) |
 
@@ -72,8 +66,8 @@ layers:
 Each integration ships a **hand-authored `bootstrap.sh`** (committed) plus a
 `manifest.yaml` of metadata. Bootstraps don't share a shape — Hermes hands a
 skill to its gateway; OpenClaw runs a couple of `curl`s and the `openclaw` CLI —
-so they aren't generated. The web app reads the script and swaps in your key at a
-`{{BAND_USER_API_KEY}}` placeholder; `scripts/check.py` keeps every integration valid.
+so they aren't generated. The web app serves the script and gives you a key to paste
+when it prompts; `scripts/check.py` keeps every integration valid.
 
 <details>
 <summary>Repo layout</summary>
@@ -81,7 +75,9 @@ so they aren't generated. The web app reads the script and swaps in your key at 
 ```
 README.md            ← this index (user-facing)
 CONTRIBUTING.md      ← add an integration · validation · roadmap
+TESTING.md           ← test a bootstrap change locally
 scripts/check.py     ← validates the catalog (CI gate)
+scripts/local-bootstrap.sh ← run a bootstrap locally, the curl|bash way
 tests/               ← drift + per-integration tests (pytest, thenvoi style)
 _template/           ← copy to start a new integration
 <harness>/
