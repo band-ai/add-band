@@ -25,9 +25,11 @@ ROOT = Path(__file__).resolve().parent.parent
 # Top-level dirs that are not integrations.
 STRUCTURAL = {"scripts", "tests"}
 
-# Stub folders with no manifest.yaml + bootstrap.sh pair yet (e.g. only a
-# bootstrap-prompt.md). Listing one here is a deliberate opt-out; the drift test
-# fails for any unclassified folder.
+# Stubs that don't ship a shell bootstrap.sh, so the catalog gate skips them.
+# Listing one here is a deliberate opt-out; the drift test fails for any
+# unclassified folder. claude/codex/cursor are AI-coding-agent integrations that
+# bootstrap from a pasted prompt (bootstrap-prompt.md), not a `curl … | bash`
+# snippet, so they have no bootstrap.sh for check.py to validate.
 STUB_ONLY: set[str] = {"claude", "codex", "cursor"}
 
 REQUIRED_MANIFEST_FIELDS = {"name", "repo", "connects_via", "status", "summary"}
