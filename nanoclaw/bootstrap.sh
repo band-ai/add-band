@@ -128,7 +128,23 @@ if ! band_ready; then
   echo "If the agent group's OneCLI secretMode is 'selective', grant it this secret (see /manage-channels)."
 fi
 
-# 8. Hand off to the add-band skill — it owns the real install (copy from
+# 8. Setup pre-flight (non-blocking): bootstrap wires Band but never runs the
+#    NanoClaw base setup. If `bash nanoclaw.sh` hasn't run on this host for this
+#    checkout, the registered agent won't run yet — so hint, don't gate (setup can
+#    legitimately come after). Key off setup's terminal product, the per-install
+#    service, via the checkout's own slug helper so the name matches what setup wrote.
+nanoclaw_setup_done() {
+  [ -f setup/lib/install-slug.sh ] || return 1
+  ( PROJECT_ROOT="$PWD" . setup/lib/install-slug.sh
+    case "$(uname -s)" in
+      Darwin) [ -f "$HOME/Library/LaunchAgents/$(launchd_label).plist" ] ;;
+      Linux)  [ -f "$HOME/.config/systemd/user/$(systemd_unit).service" ] ;;
+      *) return 1 ;;
+    esac )
+}
+nanoclaw_setup_done || echo "Note: NanoClaw isn't set up on this host yet — run 'bash nanoclaw.sh' so the registered agent actually runs." >&2
+
+# 9. Hand off to the add-band skill — it owns the real install (copy from
 #    band-ai/band/adapter, imports, pinned deps, build, verify) and room wiring.
 #    `< /dev/tty` gives the skill the real terminal even under `curl | bash`.
 if command -v claude >/dev/null 2>&1; then claude /add-band < /dev/tty
