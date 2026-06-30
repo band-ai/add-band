@@ -64,7 +64,24 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# OPENCLAW_STATE_DIR, OPENCLAW_CONFIG_PATH, and OPENCLAW_HOME are read by the
+# openclaw CLI itself from the environment; the subcommands below inherit them
+# automatically. Nothing here unsets or overrides them. These are the same knobs
+# the official `openclaw uninstall` resolves to find what to remove:
+#   uninstall docs:           https://github.com/openclaw/openclaw/blob/main/docs/install/uninstall.md
+#   path resolver (paths.ts): https://github.com/openclaw/openclaw/blob/main/src/config/paths.ts
 command -v openclaw >/dev/null || { echo "install openclaw first (the 'openclaw' CLI must be on PATH)"; exit 1; }
+# Liveness check: `openclaw config file` is read-only and side-effect-free — it
+# resolves the active config path from env overrides or the default location and
+# prints it, via resolveConfigPath() in the same paths.ts linked above (the resolver
+# `openclaw uninstall` also relies on). It does NOT require the config file to exist,
+# so a fresh/uninitialized install passes cleanly. Failure here means the binary is
+# broken or the runtime is unusable, not just "not yet configured" — we warn rather
+# than hard-fail so a partial install that self-heals via `openclaw plugins install`
+# (below) can still continue.
+if ! openclaw config file >/dev/null 2>&1; then
+  echo "warning: 'openclaw config file' failed — openclaw may not be fully initialized (continuing)" >&2
+fi
 command -v curl >/dev/null || { echo "install curl first"; exit 1; }
 
 # Prompt for any value not supplied by a flag or env var. Prompts write to
