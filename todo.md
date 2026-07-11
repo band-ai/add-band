@@ -43,8 +43,9 @@ and **per-harness profile fields** — this plan is the executable projection.
 - ⬜ **T1** Band tool names namespaced — no collision across platforms.
 - ⬜ **T1** Band event carries platform identity (attributable to Band).
 - ⬜ **T1** room + participants render into per-turn context.
-- ✅ **E2E** agent answers a specific Band turn — `test_liveness` requires a
-  run-scoped reply token, not a generic acknowledgement.
+- 🟡 **E2E** agent answers a specific Band turn — `test_liveness` requires a
+  run-scoped reply token, not a generic acknowledgement. The strengthened
+  assertion awaits hosted verification.
 
 ## F1 — Owner hub & command gate  (control plane)
 
@@ -78,9 +79,10 @@ and **per-harness profile fields** — this plan is the executable projection.
   user turns.
 - ⬜ **T1** divergence resolves to a declared outcome (Band-wins /
   last-writer-wins / reconcile-and-flag); silent corruption = fail.
-- ✅ **E2E** recall a fact from an earlier turn — `test_memory` requires a
+- 🟡 **E2E** recall a fact from an earlier turn — `test_memory` requires a
   combined token whose random suffix appears only in turn two, so a delayed
-  first-turn reply cannot satisfy it.
+  first-turn reply cannot satisfy it. The strengthened assertion awaits hosted
+  verification.
 
 ## L3 — Multi-participant chat
 
@@ -92,13 +94,16 @@ and **per-harness profile fields** — this plan is the executable projection.
 - ⬜ **T1** non-owner plain prompt admitted/ignored per declared policy.
 - 🟡 **T1/E2E** roster + attributed multi-author history present in context —
   `test_multi_author_history_preserves_sender_identity` covers the E2E proof;
-  the deterministic composed-context assertion remains.
+  the deterministic composed-context assertion remains and the live check
+  awaits hosted verification.
 - 🟡 **T1** outbound turn carries the target's Band `@handle` (not display
   name) — pair and relay E2E proofs require the handle in the structured
-  outbound mention; the deterministic assertion remains.
-- ✅ **E2E** actual routing / delegation — group fan-out, attributed
+  outbound mention; the deterministic assertion remains and the live checks
+  await hosted verification.
+- 🟡 **E2E** actual routing / delegation — group fan-out, attributed
   multi-author history, and pair/three-way relays. Relay proofs require ordered
   sender steps, structured target mentions, and the target's full `@handle`.
+  The strengthened checks await hosted verification.
 - N-A: co-resident *processes* on one host (single owned runtime).
 
 ## L4 — Restart / rehydration (four facets)
@@ -152,9 +157,9 @@ and **per-harness profile fields** — this plan is the executable projection.
    every T1-vs-E2E split below.
 2. **Tier-1 seam** (tracks INT-986/INT-800) — unlocks the deterministic half;
    until then land the E2E rungs and mark T1 checks E2E-only in the profile.
-3. **Deepen what Phase 0 started** — ✅ liveness→L0a, memory→L2, and
-   exchanges→L3 have sound E2E proofs. Add Tier-1 cases as upstream seams make
-   each declared check observable.
+3. **Deepen what Phase 0 started** — 🟡 liveness→L0a, memory→L2, and
+   exchanges→L3 have stronger E2E proofs awaiting hosted verification. Add
+   Tier-1 cases as upstream seams make each declared check observable.
 4. **L4 restart** — needs the cold-start verb + persisted-store fixtures.
 5. **L5/F3, L6** — need capability tools and a second platform (F3).
 6. **Scorecard + CI** — emit per-harness×level, wire into INT-894.
