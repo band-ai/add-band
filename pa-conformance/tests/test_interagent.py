@@ -49,8 +49,7 @@ async def test_seeded_ask_and_relay(
             token=codeword(run_id),
         )
 
-    outcome.assert_answered()
-    outcome.assert_relayed()
+    outcome.assert_completed()
     outcome.assert_bounded()
 
 

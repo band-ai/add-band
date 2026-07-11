@@ -1,9 +1,9 @@
 # PA conformance — Phase 0
 
 Live proof that three personal-agent harnesses — **NanoClaw**, **OpenClaw**,
-**Hermes** — come up headlessly, connect to hosted Band, answer a direct
-`@mention`, and talk to each other in a shared Band room. This is Phase 0 of
-the PA conformance baseline; the full per-level scorecard builds on it.
+**Hermes** — come up headlessly, connect to hosted Band, retain room context,
+and route messages through a shared Band room. The live checks cover L0a, L2,
+and L3; deterministic checks need an upstream observation seam.
 
 Two principles carry the design:
 
@@ -60,7 +60,7 @@ harness/    PA-side runners — one per harness, one shared contract
   compose.py   project-namespaced `docker compose` wrapper
   nanoclaw.py · openclaw.py · hermes.py
 stacks/     deployment config only (never vendors integration code)
-tests/      liveness ×N, memory ×N, group fan-out, exchange, 3-way relay
+tests/      L0a liveness ×N, L2 memory ×N, L3 group scenarios and relays
 pa_settings.py  every suite knob, typed (pydantic-settings)
 conftest.py     session wiring: SDK fixtures replicated + the `pas` fixture
 ```
@@ -103,21 +103,21 @@ project.
    the host serving its CLI socket.
 
 3. **Per-harness scenarios** (parametrized over the harness registry, never
-   hand-listed): *liveness* — one `@mention` in a fresh room, wait for a
-   reply from that sender id; *memory* — turn one seeds a run-scoped
-   codeword, turn two must recall it, waited on a per-turn window so an
-   earlier reply cannot satisfy a later turn. Waits are reply-presence, not
+   hand-listed): *L0a liveness* — one `@mention` in a fresh room must return a
+   run-scoped codeword; *L2 memory* — turn one seeds a codeword, then turn two
+   discloses a random suffix that the reply must append. The combined result
+   cannot be a delayed first-turn echo. Waits are reply-presence, not
    delivery-status — status reporting is harness-dependent and belongs to
    later conformance levels.
 
-4. **The exchanges.** The driver posts one seed mentioning only the first
-   agent. Band delivers messages only to mentioned agents, so the codeword
-   in the seed can reach the others solely through the @mention chain —
-   codeword-in-reply *is* the delivery proof, bounded by a turn cap and a
-   deadline (≤6 msgs/90s pair, ≤10/150s for the three-way relay, where every
-   leg must author the codeword so a shortcut fails the middle leg). The
-   *group fan-out* covers the remaining shape: one message mentioning every
-   PA, each replies in the same room.
+4. **L3 group scenarios.** The driver posts one seed mentioning only the
+   first agent. The codeword can reach the others only through a declared,
+   ordered mention chain. Each hand-off must include both the target's
+   structured Band mention and its full `@handle`; the pair and three-way
+   relays are bounded at ≤6/90s and ≤10/150s respectively. *Group fan-out*
+   sends one token-bearing turn to every PA in a room, and the attribution
+   scenario asks a second PA to identify the author of an earlier first-PA
+   turn.
 
 5. **Teardown, three rings.** Each harness's `down()` (compose `down -v`,
    plus NanoClaw sweeping the sibling agent containers its host spawns

@@ -1,11 +1,15 @@
-"""Phase-0 liveness: each PA, in a driver-created room, answers a direct
-@mention (INT-987 deliverable #3). Parametrized over the selected harnesses —
-never hand-listed."""
+"""L0a liveness: each PA proves it processed a Band turn in a fresh room.
+
+The run-scoped codeword distinguishes a response to this driver-created turn
+from a generic acknowledgement or a stale reply. The test is parametrized over
+the selected harnesses — never hand-listed.
+"""
 
 from __future__ import annotations
 
 import asyncio
 
+from driver.exchange import codeword
 from driver.sdk import CaptureFactory, ResourceManager, UserOps
 from driver.waits import wait_for_reply_from
 
@@ -15,7 +19,9 @@ async def test_replies_to_direct_message(
     resources: ResourceManager,
     user_ops: UserOps,
     capture: CaptureFactory,
+    run_id: str,
 ) -> None:
+    token = codeword(run_id, prefix="PA-L0")
     room_id = await resources.provision_room(
         title=f"pa-liveness-{pa.harness.name}", participants=[pa.agent.id]
     )
@@ -24,10 +30,10 @@ async def test_replies_to_direct_message(
     async with capture(room_id) as room:
         await user_ops.send_message(
             room_id,
-            "Reply with a short greeting.",
+            f"Reply with the exact codeword {token} and nothing else.",
             mention_id=pa.agent.id,
             mention_name=pa.agent.name,
         )
-        replies = await wait_for_reply_from(room, pa.agent.id)
+        replies = await wait_for_reply_from(room, pa.agent.id, containing=token)
 
-    replies.assert_present(what=f"a reply from {pa.harness.name}")
+    replies.assert_contains_any([token])
