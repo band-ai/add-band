@@ -155,6 +155,13 @@ overlap. Every component version is a dispatch input (`harnesses`,
    `band_sdk_ref`); empty means the repo's pinned default. Secrets carry the
    `E2E_` prefix and map 1:1 onto the bare names above.
 
+The runner needs network access to the Band platform the `E2E_` secrets
+target. That platform is VPN-only (dev), so a GitHub-hosted runner cannot
+reach it — every provisioning call times out at setup — and the suite is
+validated locally from a VPN-connected host. Set the `PA_CONFORMANCE_RUNNER`
+repo variable to a runner label that can reach Band to run it in CI; it
+defaults to `ubuntu-latest`.
+
 ## Pins
 
 | What | Where | Value |
