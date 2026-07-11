@@ -80,6 +80,28 @@ class MentionChainStep:
         return f"a reply from {self.sender.name}{target} containing {token}"
 
 
+def chain_completed(
+    steps: tuple[MentionChainStep, ...], token: str, messages: list
+) -> bool:
+    """Whether `messages` contain the steps as an ordered subsequence: each
+    step matched at or after the previous match, gaps allowed. The wait
+    predicate and the outcome share this one definition of "done"."""
+    cursor = 0
+    for step in steps:
+        index = next(
+            (
+                index
+                for index, message in enumerate(messages[cursor:], cursor)
+                if step.matches(message, token)
+            ),
+            None,
+        )
+        if index is None:
+            return False
+        cursor = index + 1
+    return True
+
+
 @dataclass(frozen=True)
 class MentionChainOutcome:
     """Captured transcript evaluated against a declarative mention chain."""
@@ -90,20 +112,7 @@ class MentionChainOutcome:
     max_messages: int
 
     def is_completed(self, messages: list) -> bool:
-        cursor = 0
-        for step in self.steps:
-            index = next(
-                (
-                    index
-                    for index, message in enumerate(messages[cursor:], cursor)
-                    if step.matches(message, self.token)
-                ),
-                None,
-            )
-            if index is None:
-                return False
-            cursor = index + 1
-        return True
+        return chain_completed(self.steps, self.token, messages)
 
     def assert_completed(self) -> None:
         expected = " → ".join(step.describe(self.token) for step in self.steps)
@@ -117,6 +126,7 @@ class MentionChainOutcome:
             f"expected at most {self.max_messages} agent messages, "
             f"got {len(self.transcript)} — a runaway exchange"
         )
+
 
 async def run_exchange(
     *,
@@ -135,6 +145,12 @@ async def run_exchange(
     Returns a MentionChainOutcome either way — asserting is the test's job.
     The capture must already be open on `room_id` (subscribe-before-send).
     """
+    steps = (
+        MentionChainStep(asker, responder, responder_handle),
+        MentionChainStep(responder),
+        MentionChainStep(asker),
+    )
+
     await user_ops.send_message(
         room_id,
         _SEED.format(responder_handle=responder_handle, token=token),
@@ -142,29 +158,18 @@ async def run_exchange(
         mention_name=asker_mention_name,
     )
 
-    outcome = MentionChainOutcome(
-        token=token,
-        steps=(
-            MentionChainStep(asker, responder, responder_handle),
-            MentionChainStep(responder),
-            MentionChainStep(asker),
-        ),
-        transcript=Replies(),
-        max_messages=MAX_AGENT_MESSAGES,
-    )
-
     try:
         await capture.wait_until(
-            lambda messages: outcome.is_completed(messages)
+            lambda messages: chain_completed(steps, token, messages)
             or len(messages) >= MAX_AGENT_MESSAGES,
             deadline_s=deadline_s,
         )
     except TimeoutError:
-        pass  # the outcome carries whatever was captured; asserts decide
+        pass  # whatever was captured is returned; asserting is the test's job
 
     return MentionChainOutcome(
         token=token,
-        steps=outcome.steps,
+        steps=steps,
         transcript=Replies(capture.messages),
         max_messages=MAX_AGENT_MESSAGES,
     )

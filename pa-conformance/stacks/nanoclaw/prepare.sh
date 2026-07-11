@@ -53,16 +53,31 @@ for f in "${FILES[@]}"; do
     || { echo "payload copy of $f is not byte-identical" >&2; exit 1; }
 done
 
-append_once() { # append_once <file> <line>
+append_once() { # append_once <file> <import>: idempotent trailing import.
   grep -qxF "$2" "$1" || printf '%s\n' "$2" >> "$1"
 }
+
+insert_after() { # insert_after <file> <anchor> <import>
+  # Idempotent, and loud: a missing anchor or a failed insert aborts the run.
+  # The payload is inert without this wiring, so a silent no-op is worse than
+  # a hard stop.
+  local file="$1" anchor="$2" import="$3"
+  grep -qxF "$import" "$file" && return 0
+  grep -qF "$anchor" "$file" || { echo "prepare: anchor not in $file: $anchor" >&2; exit 1; }
+  awk -v anchor="$anchor" -v import="$import" '
+    { print }
+    index($0, anchor) && !done { print import; done = 1 }
+  ' "$file" > "$file.tmp"
+  mv "$file.tmp" "$file"
+  grep -qxF "$import" "$file" || { echo "prepare: failed to wire $import into $file" >&2; exit 1; }
+}
+
 append_once src/channels/index.ts "import './band.js';"
 append_once container/agent-runner/src/mcp-tools/index.ts "import './band.js';"
-# This one is position-sensitive: after providers/index.js, before createProvider.
-grep -qxF "import './band-lifecycle.js';" container/agent-runner/src/index.ts || \
-  sed -i.bak "/import '\.\/providers\/index\.js';/a\\
-import './band-lifecycle.js';
-" container/agent-runner/src/index.ts && rm -f container/agent-runner/src/index.ts.bak
+# Position-sensitive: the lifecycle import must follow the providers registry
+# import so the registry exists before band-lifecycle.js registers against it.
+insert_after container/agent-runner/src/index.ts \
+  "import './providers/index.js';" "import './band-lifecycle.js';"
 
 echo "==> installing pinned Band SDK deps"
 pnpm add @band-ai/sdk@0.1.6 @band-ai/rest-client@0.0.121

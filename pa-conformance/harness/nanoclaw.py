@@ -7,9 +7,9 @@ at it via NANOCLAW_SRC and owns only runtime concerns.
 
 Runtime shape:
   - the compose stack is postgres + onecli + the socket-mounted host, which
-    spawns per-agent sibling containers through /var/run/docker.sock.
-    DOCKER_GID is computed from the socket at runtime, never hardcoded
-    (host-specific by design).
+    spawns per-agent sibling containers through the Docker socket. DOCKER_GID
+    is computed from that socket at runtime (DOCKER_HOST, else the conventional
+    path), never hardcoded — it is host-specific by design.
   - identity is injected via the checkout's .env (BAND_AGENT_ID /
     BAND_AGENT_API_KEY), so no registration happens here.
   - NanoClaw routes per registered messaging group, so driver-created rooms
@@ -49,6 +49,27 @@ def _agent_image_base(src: Path) -> str:
     return f"nanoclaw-agent-v2-{slug}"
 
 
+def _docker_gid() -> int:
+    """GID of the Docker socket, so the socket-mounted host can grant its
+    sibling agent containers access to the daemon. Honors DOCKER_HOST
+    (``unix://…``) and falls back to the conventional path; a socket that
+    can't be reached is a clear setup error, not a bare stat traceback."""
+    host = os.environ.get("DOCKER_HOST", "")
+    socket = (
+        Path(host[len("unix://") :])
+        if host.startswith("unix://")
+        else Path("/var/run/docker.sock")
+    )
+    try:
+        return os.stat(socket).st_gid
+    except OSError as exc:
+        raise RuntimeError(
+            f"Docker socket {socket} is unreachable ({exc.strerror}); NanoClaw "
+            "mounts it to spawn agent containers — point DOCKER_HOST at a "
+            "Unix socket (unix://…)"
+        ) from exc
+
+
 class NanoClawHarness(Harness):
     name = "nanoclaw"
     ready_timeout_s = 300.0  # postgres + onecli + host cold start
@@ -60,26 +81,25 @@ class NanoClawHarness(Harness):
         ).resolve()
         config_dir = self.workdir / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
+        # The per-agent image the host spawns siblings from; derived once and
+        # reused for the compose env, the readiness precondition, and teardown.
+        self.agent_image = f"{_agent_image_base(self.src)}:latest"
         self.stack = ComposeStack(
             file=self.src / "docker-compose.yml",
             project=f"pa-nanoclaw-{ctx.run_id}",
             env={
                 "NANOCLAW_HOST_PATH": str(self.src),
                 "NANOCLAW_CONFIG_DIR": str(config_dir),
-                "DOCKER_GID": str(os.stat("/var/run/docker.sock").st_gid),
+                "DOCKER_GID": str(_docker_gid()),
                 "COMPOSE_ONECLI_IMAGE": pa_settings().compose_onecli_image,
-                "COMPOSE_CONTAINER_IMAGE": f"{_agent_image_base(self.src)}:latest",
+                "COMPOSE_CONTAINER_IMAGE": self.agent_image,
                 "COMPOSE_POSTGRES_PASSWORD": secrets.token_hex(16),
                 **ctx.llm_env,
             },
         )
 
     def up(self, identity: BandIdentity) -> None:
-        if not (self.src / "docker-compose.yml").exists():
-            raise FileNotFoundError(
-                f"no prepared NanoClaw checkout at {self.src} — run "
-                "pa-conformance/stacks/nanoclaw/prepare.sh (NANOCLAW_SRC) first"
-            )
+        self._require_prepared()
         self.stack.redactions.add(identity.api_key)  # scrub it from logs()
         self._merge_env_file(
             BAND_AGENT_ID=identity.agent_id,
@@ -92,6 +112,28 @@ class NanoClawHarness(Harness):
         )
         self.stack.up()
         self._seed_onecli_vault(identity)
+
+    def _require_prepared(self) -> None:
+        """The prepared checkout must supply both the compose file and the
+        slug-tagged agent image. The host spawns agents from that image at
+        runtime, outside compose, where a missing tag surfaces only as an
+        opaque 'agent never started' — so it is checked up front, here."""
+        if not (self.src / "docker-compose.yml").exists():
+            raise FileNotFoundError(
+                f"no prepared NanoClaw checkout at {self.src} — run "
+                "pa-conformance/stacks/nanoclaw/prepare.sh (NANOCLAW_SRC) first"
+            )
+        inspected = subprocess.run(
+            ["docker", "image", "inspect", self.agent_image],
+            capture_output=True,
+            text=True,
+        )
+        if inspected.returncode != 0:
+            raise FileNotFoundError(
+                f"NanoClaw agent image {self.agent_image} is missing — the "
+                f"checkout at {self.src} was not built by its prepare.sh, or "
+                "its path changed since (the tag is derived from the path)"
+            )
 
     def _seed_onecli_vault(self, identity: BandIdentity) -> None:
         """Give agent containers their outbound credentials via OneCLI's
@@ -168,8 +210,7 @@ class NanoClawHarness(Harness):
         # The host spawns per-agent sibling containers through the Docker
         # socket, outside compose. Sweep this checkout's agent image.
         ids = subprocess.run(
-            ["docker", "ps", "-aq", "--filter",
-             f"ancestor={_agent_image_base(self.src)}:latest"],
+            ["docker", "ps", "-aq", "--filter", f"ancestor={self.agent_image}"],
             capture_output=True, text=True,
         ).stdout.split()
         if ids:
@@ -187,8 +228,7 @@ class NanoClawHarness(Harness):
         through the Docker socket — they live outside compose, so the stack's
         own ps/logs never show them, yet they run the actual agent loop."""
         ps = subprocess.run(
-            ["docker", "ps", "-a", "--filter",
-             f"ancestor={_agent_image_base(self.src)}:latest",
+            ["docker", "ps", "-a", "--filter", f"ancestor={self.agent_image}",
              "--format", "{{.ID}} {{.Status}} {{.Names}}"],
             capture_output=True, text=True,
         ).stdout.strip()
