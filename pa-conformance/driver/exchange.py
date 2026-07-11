@@ -83,8 +83,6 @@ class MentionChainStep:
         return bool(
             metadata
             and any(mention.id == self.recipient.id for mention in metadata.mentions)
-            and self.recipient_handle
-            and f"@{self.recipient_handle}".lower() in (message.content or "").lower()
         )
 
     def describe(self, token: str) -> str:
