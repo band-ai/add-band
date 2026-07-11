@@ -65,13 +65,7 @@ concurrency:
 jobs:
   conformance:
     name: bring up the PA harnesses and test them on Band
-    # The suite drives the Band platform the E2E_BAND_* secrets point at, and
-    # that platform is network-restricted (VPN-only dev). A GitHub-hosted runner
-    # cannot reach it, so every provisioning call ConnectTimeouts at setup. To
-    # run in CI, set the PA_CONFORMANCE_RUNNER repo variable to a runner label
-    # with network access to Band; absent that, the suite is validated locally
-    # from a VPN-connected host.
-    runs-on: ${{ vars.PA_CONFORMANCE_RUNNER || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
       # Toolchain versions, one place to audit and bump.
