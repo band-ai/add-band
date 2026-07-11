@@ -53,7 +53,7 @@ driver/     Band-side primitives, acting as the OWNER identity
   checkout.py  acquires the band-sdk-python checkout (BAND_SDK_PATH or .deps/)
   sdk.py       the one bridge to band-sdk-python's baseline E2E toolkit
   ops.py       driver sends beyond UserOps (multi-mention fan-out)
-  exchange.py  the bounded inter-agent ask-and-relay + three-way relay
+  exchange.py  the bounded inter-agent ask-and-relay exchange
   waits.py     reply-presence waits (per-sender, per-turn window, fan-in)
 harness/    PA-side runners — one per harness, one shared contract
   contract.py  up(identity) · wait_ready() · attach_room(room) · down()
@@ -111,10 +111,9 @@ project.
    later conformance levels.
 
 4. **L3 group scenarios.** The driver posts one seed mentioning only the
-   first agent. The codeword can reach the others only through a declared,
-   ordered mention chain. Each hand-off must include both the target's
-   structured Band mention and its full `@handle`; the pair and three-way
-   relays are bounded at ≤6/90s and ≤10/150s respectively. *Group fan-out*
+   asker. The codeword can reach the responder only through a declared,
+   ordered mention chain. Each hand-off must carry the target's structured
+   Band mention; the pair ask-and-relay is bounded at ≤6/90s. *Group fan-out*
    sends one token-bearing turn to every PA in a room, and the attribution
    scenario asks a second PA to identify the author of an earlier first-PA
    turn.
