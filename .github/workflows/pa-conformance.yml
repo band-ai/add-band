@@ -74,6 +74,11 @@ jobs:
       PNPM_VERSION: "10.33.0"
 
       E2E_TESTS_ENABLED: "true"
+      # Failure deadline per waited turn (never a success signal). NanoClaw's
+      # host cycles agent containers at ~60s, so on a cold runner a first-contact
+      # greeting turn plus the actual reply cannot fit the 60s settings default;
+      # 120s matches band-sdk-python's e2e turn budget.
+      E2E_TIMEOUT: "120"
       BAND_BASE_URL: ${{ secrets.E2E_BAND_REST_URL }}
       BAND_WS_URL: ${{ secrets.E2E_BAND_WS_URL }}
       BAND_API_KEY_USER: ${{ secrets.E2E_BAND_API_KEY_USER }}
