@@ -1,0 +1,47 @@
+# Pinned environment + pytest config for the Phase-0 suite; not a package.
+#
+# band-sdk installs from git (main; uv.lock pins the commit — refresh with
+# `uv lock --upgrade-package band-sdk`), not PyPI: the suite also imports the
+# repo's baseline toolkit (tests/e2e/baseline), which is not shipped in the
+# wheel. driver/sdk.py auto-clones the toolkit at the installed commit, read
+# from the dist's PEP-610 direct_url.json. BAND_SDK_PATH can point both at an
+# existing checkout.
+[project]
+name = "pa-conformance"
+version = "0.0.0"
+description = "PA conformance Phase 0 (INT-987): live bring-up + Band driving of NanoClaw, OpenClaw, Hermes"
+requires-python = ">=3.11,<3.14"  # band-sdk has no 3.14 wheels
+dependencies = [
+    # What the suite + the SDK's baseline toolkit import directly.
+    "band-sdk",
+    "pydantic-settings>=2",
+    "python-dotenv>=1",
+    "rich>=15.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=1",
+    "pytest-timeout>=2",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+band-sdk = { git = "https://github.com/band-ai/band-sdk-python", branch = "main" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_test_loop_scope = "session"
+asyncio_default_fixture_loop_scope = "session"
+# One shared bound per test, generous because the first test's setup carries
+# the whole session bring-up (3 harness stacks). The real waits inside tests
+# are governed by their own, much tighter deadlines (capture deadlines, the
+# exchange's 90s bound, wait_ready's per-harness timeout).
+timeout = 1800
+timeout_method = "thread"
+log_cli = true
+log_cli_level = "INFO"

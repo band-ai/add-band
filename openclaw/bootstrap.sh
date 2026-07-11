@@ -136,5 +136,19 @@ fi
 
 openclaw channels add --channel openclaw-channel-band --account "$AGENT_ID" --token "$AGENT_KEY"
 openclaw config set "channels.openclaw-channel-band.accounts.$AGENT_ID.agentId" "$AGENT_ID"
+
+# The plugin's own config schema declares hardcoded prod defaults for wsUrl/restUrl
+# (wss://app.thenvoi.com, https://app.thenvoi.com). Schema defaulting fills those
+# into the account object before the plugin's own BAND_WS_URL/BAND_REST_URL env-var
+# fallback ever runs, so exporting those env vars alone silently has no effect —
+# set the account fields explicitly, derived from the same $base used to register.
+openclaw config set "channels.openclaw-channel-band.accounts.$AGENT_ID.wsUrl" "${BAND_WS_URL:-${base/https:/wss:}/api/v1/socket/websocket}"
+openclaw config set "channels.openclaw-channel-band.accounts.$AGENT_ID.restUrl" "$base"
+
+# A from-scratch host (this script's target — no prior `openclaw onboard`) has no
+# gateway.mode set, and the gateway refuses to start at all without it. Set it only
+# if unset, so a host that already ran onboard keeps its own choice.
+openclaw config get gateway.mode >/dev/null 2>&1 || openclaw config set gateway.mode local
+
 openclaw gateway restart
 echo "Registered agent $AGENT_ID. Channel wired; the openclaw CLI stored its credentials."

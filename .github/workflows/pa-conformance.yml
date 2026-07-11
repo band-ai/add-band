@@ -1,0 +1,161 @@
+name: PA conformance
+
+# Live end-to-end bring-up of the three PA harnesses (NanoClaw, OpenClaw,
+# Hermes) against hosted Band: each comes up headlessly, answers a direct
+# @mention, and they complete bounded inter-agent exchanges. Provisions real
+# Band agents and calls real model providers, so it runs on demand, not per
+# PR (same policy as band-sdk-python's e2e workflow).
+#
+# One job runs all selected compose stacks side by side. The PAs talk through
+# hosted Band, so the job only needs them connected during the same test window.
+#
+# The suite is a self-contained uv project (pa-conformance/pyproject.toml):
+# band-sdk installs from git, and the suite auto-clones the SDK's baseline
+# toolkit tree at the exact installed commit. Git access uses E2E_GITHUB_TOKEN
+# because the SDK repo carries a private SSH-URL submodule.
+#
+# Every component version is overridable at dispatch (empty input = the
+# repo's pinned default).
+#
+# Secrets carry the E2E_ prefix (scoped to live runs) and map 1:1 onto the
+# bare names the toolkit reads — the same convention as band-sdk-python.
+
+on:
+  workflow_dispatch:
+    inputs:
+      harnesses:
+        description: "Harnesses to run"
+        type: choice
+        default: "all"
+        options:
+          - all
+          - nanoclaw
+          - openclaw
+          - hermes
+          - nanoclaw,openclaw
+          - nanoclaw,hermes
+          - openclaw,hermes
+      openclaw_version:
+        description: "OpenClaw version — a docker.io/openclaw/openclaw image tag, e.g. 2026.6.11 (empty = the suite's pin)"
+        type: string
+        default: ""
+      hermes_version:
+        description: "Hermes version — a docker.io/nousresearch/hermes-agent image tag, e.g. v2026.7.7.2 (empty = the suite's pin)"
+        type: string
+        default: ""
+      hermes_plugin_ref:
+        description: "band-ai/hermes-band-platform git ref baked into the Hermes image"
+        type: string
+        default: "main"
+      nanoclaw_branch:
+        description: "NanoClaw branch to build (empty = main)"
+        type: string
+        default: ""
+      band_sdk_ref:
+        description: "band-ai/band-sdk-python git ref for the driver toolkit (empty = the uv.lock pin)"
+        type: string
+        default: ""
+
+# One live run per harness subset; runs with the same subset share one Band
+# owner account and would race. A newer dispatch supersedes the older.
+concurrency:
+  group: pa-conformance-${{ inputs.harnesses || 'all' }}
+  cancel-in-progress: true
+
+jobs:
+  conformance:
+    name: bring up the PA harnesses and test them on Band
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # Toolchain versions, one place to audit and bump.
+      PYTHON_VERSION: "3.12"
+      NODE_VERSION: "22"
+      PNPM_VERSION: "10.33.0"
+
+      E2E_TESTS_ENABLED: "true"
+      BAND_BASE_URL: ${{ secrets.E2E_BAND_REST_URL }}
+      BAND_WS_URL: ${{ secrets.E2E_BAND_WS_URL }}
+      BAND_API_KEY_USER: ${{ secrets.E2E_BAND_API_KEY_USER }}
+      ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
+
+      # '' means all to the suite.
+      PA_HARNESSES: ${{ inputs.harnesses != 'all' && inputs.harnesses || '' }}
+      NANOCLAW_SRC: ${{ github.workspace }}/.nanoclaw-band
+      NANOCLAW_REF: ${{ inputs.nanoclaw_branch }}
+      OPENCLAW_IMAGE: ${{ inputs.openclaw_version && format('docker.io/openclaw/openclaw:{0}', inputs.openclaw_version) || '' }}
+      HERMES_IMAGE: ${{ inputs.hermes_version && format('docker.io/nousresearch/hermes-agent:{0}', inputs.hermes_version) || '' }}
+      BAND_HERMES_REF: ${{ inputs.hermes_plugin_ref }}
+
+    steps:
+      - name: Checkout add-band
+        uses: actions/checkout@v4
+
+      - name: Install uv + Python
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pa-conformance/uv.lock"
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # band-sdk-python carries a private submodule referenced by SSH URL;
+      # rewrite band-ai remotes to token-authenticated HTTPS so uv's git
+      # checkout (and the runtime toolkit clone) can fetch it.
+      - name: Grant git access to band-ai repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.E2E_GITHUB_TOKEN }}@github.com/band-ai/".insteadOf "git@github.com:band-ai/"
+          git config --global --add url."https://x-access-token:${{ secrets.E2E_GITHUB_TOKEN }}@github.com/band-ai/".insteadOf "https://github.com/band-ai/"
+
+      - name: Point band-sdk at the requested ref
+        if: ${{ inputs.band_sdk_ref != '' }}
+        working-directory: pa-conformance
+        run: uv add "band-sdk @ git+https://github.com/band-ai/band-sdk-python@${{ inputs.band_sdk_ref }}"
+
+      - name: Install the suite environment
+        working-directory: pa-conformance
+        run: uv sync
+
+      # NanoClaw has no published image: materialize the branch + the
+      # band/adapter payload + pinned SDK deps, then build host + agent images.
+      - name: Set up node (NanoClaw prepare)
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'nanoclaw') }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable pnpm
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'nanoclaw') }}
+        run: corepack enable && corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+      - name: Install bun
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'nanoclaw') }}
+        uses: oven-sh/setup-bun@v2
+      - name: Prepare NanoClaw (band payload + images)
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'nanoclaw') }}
+        run: bash pa-conformance/stacks/nanoclaw/prepare.sh
+
+      - name: Build Hermes image (Band plugin baked in)
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'hermes') }}
+        # The PA_* vars are runtime-only, but compose validates the whole file
+        # at parse time — satisfy the `:?` guards with placeholder values.
+        run: >-
+          PA_HERMES_HOME=/tmp PA_UID="$(id -u)" PA_GID="$(id -g)"
+          docker compose -f pa-conformance/stacks/hermes/compose.yaml build gateway
+
+      - name: Pull OpenClaw image
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'openclaw') }}
+        run: docker compose -f pa-conformance/stacks/openclaw/compose.yaml pull gateway
+
+      - name: Run the conformance suite
+        working-directory: pa-conformance
+        run: uv run pytest tests -v --tb=short
+
+      # Pytest tears down stacks and Band resources on normal failure. This
+      # covers local stacks after a killed process; the next run's guarded
+      # orphan sweep covers leaked Band resources.
+      - name: Tear down any surviving stacks
+        if: always()
+        run: bash pa-conformance/stacks/down-all.sh
+
+      - name: Collect docker state for diagnosis
+        if: failure()
+        run: docker ps -a && docker compose ls -a
