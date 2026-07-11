@@ -82,7 +82,7 @@ class NanoClawHarness(Harness):
         config_dir = self.workdir / "config"
         config_dir.mkdir(parents=True, exist_ok=True)
         # The per-agent image the host spawns siblings from; derived once and
-        # reused for the compose env, the readiness precondition, and teardown.
+        # reused for the compose env, the up() precondition, and teardown.
         self.agent_image = f"{_agent_image_base(self.src)}:latest"
         self.stack = ComposeStack(
             file=self.src / "docker-compose.yml",

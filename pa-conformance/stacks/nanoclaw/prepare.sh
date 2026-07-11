@@ -74,8 +74,9 @@ insert_after() { # insert_after <file> <anchor> <import>
 
 append_once src/channels/index.ts "import './band.js';"
 append_once container/agent-runner/src/mcp-tools/index.ts "import './band.js';"
-# Position-sensitive: the lifecycle import must follow the providers registry
-# import so the registry exists before band-lifecycle.js registers against it.
+# Position-sensitive per the upstream add-band instructions: the lifecycle
+# import must follow the providers-registry import (not merely be appended),
+# so insert after that anchor rather than at end of file.
 insert_after container/agent-runner/src/index.ts \
   "import './providers/index.js';" "import './band-lifecycle.js';"
 
