@@ -31,7 +31,9 @@ Full design: `pa-conformance/README.md`.
   `NANOCLAW_SRC` must be a dedicated disposable checkout/cache path. The script
   resets that checkout to the requested upstream ref before applying the Band
   payload, so never point it at a user-edited NanoClaw working tree. Pass the
-  same absolute `NANOCLAW_SRC` to every run (or set it in `.env.test`).
+  same absolute `NANOCLAW_SRC` to every run (or set it in `.env.test`). Leave
+  `NANOCLAW_REF` empty to use upstream `main`; only name a temporary branch
+  after confirming it still exists.
 
 ## 2. Run
 
@@ -40,11 +42,12 @@ cd pa-conformance
 E2E_TESTS_ENABLED=true uv run pytest tests -v --tb=short
 ```
 
-- Subset: `PA_HARNESSES=hermes,openclaw` (inter-agent tests need ≥2 selected,
-  the three-way relay all 3; not-selected tests skip cleanly).
-- One scenario: `E2E_TESTS_ENABLED=true uv run pytest tests/test_memory.py -v --tb=short`.
-- A full 3-harness run takes ~4 minutes and provisions real Band agents and
-  rooms (all reaped on exit, pass or fail) and calls real LLMs.
+- Subset: `PA_HARNESSES=hermes,openclaw` (the pair exchange and group scenarios
+  need ≥2 selected; per-harness tests still run with one).
+- One file: `E2E_TESTS_ENABLED=true uv run pytest tests/test_memory.py -v --tb=short`.
+  Use `-k recalls_fact` or `-k leak_fact` to select one of its scenarios.
+- A full 3-harness run typically takes 10–20 minutes. It provisions real Band
+  agents and rooms, calls real LLMs, and reaps resources on pass or failure.
 
 ## 3. Report the results
 
@@ -61,7 +64,8 @@ style):
   (they are written to name the missing behavior), and what the agent actually
   said (the captured transcript). For setup, Docker, auth, or network failures,
   summarize the relevant diagnostic instead.
-- Skips are signal, not noise: say why (e.g. "relay needs all 3 harnesses").
+- Skips are signal, not noise: say why (e.g. "pair exchange needs at least two
+  harnesses").
 
 The goal: per-harness conformance readable at a glance, like a CI scorecard.
 
@@ -71,8 +75,14 @@ The goal: per-harness conformance readable at a glance, like a CI scorecard.
   actually said before touching code.
 - Harness bring-up failures print the stack's diagnostics (compose ps + logs)
   in the fixture error; the stacks are named `pa-<harness>-<run_id>`.
-- `httpx.ConnectTimeout` on the first Band call = the Band host is
-  unreachable (dev platform is VPN-only), not a suite bug.
+- `httpx.ConnectTimeout` on the first Band call means no scenario ran. Check
+  the configured Band endpoint and runner network access before changing test
+  code; rerun when the failure may be transient.
+- A transcript saying a provisioned mention "isn't me" is an identity/routing
+  failure, not permission to weaken the run-scoped token assertion.
+- A transcript saying earlier room history is unavailable is a real history
+  or context failure. Report it against the attributed-history scenario rather
+  than converting it into an infrastructure error.
 
 ## 5. Teardown backstop
 
