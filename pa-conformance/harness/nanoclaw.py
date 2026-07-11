@@ -178,8 +178,31 @@ class NanoClawHarness(Harness):
     def diagnostics(self) -> str:
         return (
             f"{super().diagnostics()} src={self.src}\n"
-            f"{self.stack.ps()}\n{self.stack.logs('nanoclaw', 'onecli')}"
+            f"{self.stack.ps()}\n{self.stack.logs('nanoclaw', 'onecli')}\n"
+            f"{self._sibling_diagnostics()}"
         )
+
+    def _sibling_diagnostics(self) -> str:
+        """State + logs of the per-agent sibling containers the host spawns
+        through the Docker socket — they live outside compose, so the stack's
+        own ps/logs never show them, yet they run the actual agent loop."""
+        ps = subprocess.run(
+            ["docker", "ps", "-a", "--filter",
+             f"ancestor={_agent_image_base(self.src)}:latest",
+             "--format", "{{.ID}} {{.Status}} {{.Names}}"],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        report = [f"agent sibling containers:\n{ps or '(none)'}"]
+        for container_id in (line.split()[0] for line in ps.splitlines() if line):
+            logs = subprocess.run(
+                ["docker", "logs", "--tail", "200", container_id],
+                capture_output=True, text=True,
+            )
+            text = logs.stdout + logs.stderr
+            for secret in self.stack.redactions:
+                text = text.replace(secret, "***")
+            report.append(f"--- agent container {container_id} ---\n{text}")
+        return "\n".join(report)
 
     def _ncl(self, *argv: str, check: bool = True):
         return self.stack.exec("nanoclaw", *_NCL, *argv, check=check)

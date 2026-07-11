@@ -60,6 +60,22 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
         pytest.skip("live suite — set E2E_TESTS_ENABLED=true to run")
 
 
+# Whether any test failed, so the session teardown knows to dump harness
+# diagnostics while the stacks are still up. Harness readiness is local-only
+# for some harnesses (NanoClaw), so a PA that never reaches Band fails tests,
+# not bring-up — the stack logs at teardown are the only runtime evidence.
+_session_failed = False
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo):
+    report = yield
+    if report.failed:
+        global _session_failed
+        _session_failed = True
+    return report
+
+
 @dataclass(frozen=True)
 class PA:
     """A harness that is up, ready, and reachable on Band."""
@@ -184,6 +200,17 @@ async def pas(
             live[name] = PA(harness=harness, agent=agent, handle=handle)
         yield live
     finally:
+        if _session_failed:
+            for harness in started:
+                try:
+                    diagnostics = await asyncio.to_thread(harness.diagnostics)
+                    logger.info(
+                        "%s diagnostics before teardown:\n%s",
+                        harness.name,
+                        diagnostics,
+                    )
+                except Exception:
+                    logger.exception("diagnostics of %s failed", harness.name)
         for harness in started:
             try:
                 await asyncio.to_thread(harness.down)
