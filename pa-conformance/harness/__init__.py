@@ -8,10 +8,10 @@ principle: never hand-list harnesses at a call site).
 
 from __future__ import annotations
 
-from .contract import BandIdentity, Harness, HarnessContext, ReadyTimeout
-from .hermes import HermesHarness
-from .nanoclaw import NanoClawHarness
-from .openclaw import OpenClawHarness
+from harness.contract import BandIdentity, Harness, HarnessContext, ReadyTimeout
+from harness.hermes import HermesHarness
+from harness.nanoclaw import NanoClawHarness
+from harness.openclaw import OpenClawHarness
 
 HARNESSES: dict[str, type[Harness]] = {
     cls.name: cls for cls in (NanoClawHarness, OpenClawHarness, HermesHarness)

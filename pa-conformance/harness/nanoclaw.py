@@ -32,8 +32,8 @@ from urllib.parse import urlparse
 
 from pa_settings import pa_settings
 
-from .compose import ComposeStack
-from .contract import BandIdentity, Harness, wait_for
+from harness.compose import ComposeStack
+from harness.contract import BandIdentity, Harness, wait_for
 
 _NCL = ("pnpm", "exec", "tsx", "src/cli/client.ts")
 _Q = ("pnpm", "exec", "tsx", "scripts/q.ts", "data/v2.db")

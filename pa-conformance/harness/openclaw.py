@@ -19,8 +19,8 @@ from __future__ import annotations
 import json
 import secrets
 
-from .compose import ComposeStack
-from .contract import STACKS_DIR, BandIdentity, Harness, wait_for
+from harness.compose import ComposeStack
+from harness.contract import STACKS_DIR, BandIdentity, Harness, wait_for
 
 _CHANNEL = "openclaw-channel-band"
 

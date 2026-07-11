@@ -66,6 +66,14 @@ done
 
 command -v openclaw >/dev/null || { echo "install openclaw first (the 'openclaw' CLI must be on PATH)"; exit 1; }
 command -v curl >/dev/null || { echo "install curl first"; exit 1; }
+if command -v jq >/dev/null 2>&1; then
+  json_parser=jq
+elif command -v python3 >/dev/null 2>&1; then
+  json_parser=python3
+else
+  echo "install jq or python3 first (needed to read the registration response)" >&2
+  exit 1
+fi
 
 # Prompt for any value not supplied by a flag or env var. Prompts write to
 # /dev/tty (not stdout), so they never pollute output; pressing Enter accepts
@@ -123,15 +131,16 @@ case "$code" in
   *) echo "agent registration failed (HTTP ${code:-?}): $(printf '%.300s' "$out")" >&2; exit 1 ;;
 esac
 
-if command -v jq >/dev/null 2>&1; then
-  AGENT_ID=$(printf '%s' "$out" | jq -r '.data.agent.id // empty')
-  AGENT_KEY=$(printf '%s' "$out" | jq -r '.data.credentials.api_key // empty')
-elif command -v python3 >/dev/null 2>&1; then
-  read -r AGENT_ID AGENT_KEY < <(printf '%s' "$out" | python3 -c \
-    'import sys, json; d = json.load(sys.stdin); print(d["data"]["agent"]["id"], d["data"]["credentials"]["api_key"])')
-else
-  echo "need jq or python3 to parse the registration response" >&2; exit 1
-fi
+case "$json_parser" in
+  jq)
+    AGENT_ID=$(printf '%s' "$out" | jq -r '.data.agent.id // empty')
+    AGENT_KEY=$(printf '%s' "$out" | jq -r '.data.credentials.api_key // empty')
+    ;;
+  python3)
+    read -r AGENT_ID AGENT_KEY < <(printf '%s' "$out" | python3 -c \
+      'import sys, json; d = json.load(sys.stdin); print(d["data"]["agent"]["id"], d["data"]["credentials"]["api_key"])')
+    ;;
+esac
 [ -n "${AGENT_ID:-}" ] && [ -n "${AGENT_KEY:-}" ] || { echo "agent registration failed (no credentials returned)" >&2; exit 1; }
 
 openclaw channels add --channel openclaw-channel-band --account "$AGENT_ID" --token "$AGENT_KEY"
