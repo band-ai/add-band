@@ -23,6 +23,7 @@ import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,7 +42,7 @@ class Target:
         return self.repo / self.path
 
 
-TARGETS = [
+TARGETS = (
     Target(
         "nanoclaw-band",
         SIBLINGS / "nanoclaw-band",
@@ -60,7 +61,7 @@ TARGETS = [
         SIBLINGS / "hermes-band-platform",
         Path("hermes_band_platform/skills/add-band/scripts/register-agent.sh"),
     ),
-]
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,9 +79,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def sync_targets(canonical: Path) -> list[str]:
+def sync_targets(canonical: Path, targets: Iterable[Target]) -> list[str]:
     messages: list[str] = []
-    for target in TARGETS:
+    for target in targets:
         if not target.repo.exists():
             messages.append(f"skip {target.name}: repo not found at {target.repo}")
             continue
@@ -91,12 +92,14 @@ def sync_targets(canonical: Path) -> list[str]:
     return messages
 
 
-def check_targets(canonical: Path, strict: bool) -> tuple[list[str], list[str]]:
+def check_targets(
+    canonical: Path, targets: Iterable[Target], *, strict: bool
+) -> tuple[list[str], list[str]]:
     canonical_bytes = canonical.read_bytes()
     problems: list[str] = []
     messages: list[str] = []
 
-    for target in TARGETS:
+    for target in targets:
         if not target.repo.exists():
             msg = f"{target.name}: repo not found at {target.repo}"
             (problems if strict else messages).append(msg)
@@ -122,11 +125,11 @@ def main() -> int:
         return 1
 
     if args.sync:
-        for message in sync_targets(CANONICAL):
+        for message in sync_targets(CANONICAL, TARGETS):
             print(message)
         return 0
 
-    problems, messages = check_targets(CANONICAL, strict=args.strict)
+    problems, messages = check_targets(CANONICAL, TARGETS, strict=args.strict)
     for message in messages:
         print(message)
     if problems:

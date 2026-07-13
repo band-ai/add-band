@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "description": "One PR per sweep for all pins.env bumps: each pins.env PR triggers a live PA conformance run, and separate PRs would cancel each other in the workflow's shared concurrency group.",
+      "matchFileNames": ["pa-conformance/pins.env"],
+      "groupName": "PA conformance component pins"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Branch-tracking commit pins in pa-conformance/pins.env",
+      "managerFilePatterns": ["/^pa-conformance/pins\\.env$/"],
+      "matchStrings": [
+        "# renovate: datasource=git-refs depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\n[A-Z_]+=(?<currentDigest>[0-9a-f]{40})"
+      ],
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
+      "description": "npm version pins in pa-conformance/pins.env",
+      "managerFilePatterns": ["/^pa-conformance/pins\\.env$/"],
+      "matchStrings": [
+        "# renovate: datasource=npm depName=(?<depName>\\S+)\\n[A-Z_]+=(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "npm"
+    }
+  ]
+}
