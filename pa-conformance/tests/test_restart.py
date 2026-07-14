@@ -112,6 +112,19 @@ async def test_message_for_another_agent_sent_while_down_stays_unprocessed(
 
 
 @pytest.mark.requires_profile(PROFILE_FIELD.emits_processed)
+@pytest.mark.known_gap(
+    HARNESS.hermes,
+    reason="INT-1003: hermes re-processes the offline turn after a gateway "
+    "restart (startup-restore replays completed work), so it lands PROCESSED "
+    "twice",
+    intermittent=True,
+)
+@pytest.mark.known_gap(
+    HARNESS.nanoclaw,
+    reason="INT-1004: nanoclaw re-delivers an already-processed turn to a fresh "
+    "session after a host restart, so it lands PROCESSED twice",
+    intermittent=True,
+)
 async def test_addressed_message_sent_while_down_processed_exactly_once(
     pa, owner_chat: OwnerChatFactory, run_id: str
 ) -> None:
