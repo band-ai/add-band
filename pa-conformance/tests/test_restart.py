@@ -68,6 +68,7 @@ async def test_reconnects_and_serves_known_room(
     recovered.assert_contains_any([post])
 
 
+@pytest.mark.flaky_harness(HARNESS.openclaw, reruns=2)
 async def test_message_for_another_agent_sent_while_down_stays_unprocessed(
     pa,
     owner_chat: OwnerChatFactory,

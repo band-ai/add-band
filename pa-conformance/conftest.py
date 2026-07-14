@@ -128,6 +128,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
             item.add_marker(pytest.mark.skip(reason=reason))
         if reason := _requires_profile_skip(item):
             item.add_marker(pytest.mark.skip(reason=reason))
+        if reruns := _flaky_reruns(item):
+            item.add_marker(pytest.mark.flaky(reruns=reruns))
 
 
 def _validate_lane_markers(item: pytest.Item) -> None:
@@ -220,6 +222,39 @@ def _harness_skip_reason(item: pytest.Item) -> str | None:
             )
         skips[skip.args[0]] = reason
     return skips.get(spec.params.get("pa_name"))
+
+
+def _flaky_reruns(item: pytest.Item) -> int | None:
+    """Retry count for this item's harness under a `flaky_harness` marker.
+
+    Scopes rerun tolerance of a transient live-infra flake (e.g. a restart
+    readiness timeout) to the one harness that exhibits it, so another harness
+    failing the same row is never silently retried. Reruns are driven by
+    pytest-rerunfailures via the `flaky` marker this translates to."""
+    spec = getattr(item, "callspec", None)
+    if spec is None:
+        return None
+    pa_name = spec.params.get("pa_name")
+    for marker in item.iter_markers("flaky_harness"):
+        if not marker.args:
+            raise pytest.UsageError(
+                f"{item.nodeid}: flaky_harness needs the harness name as its "
+                "first argument"
+            )
+        harness = marker.args[0]
+        if harness not in HARNESSES:
+            raise pytest.UsageError(
+                f"{item.nodeid}: unknown flaky_harness harness {harness!r}"
+            )
+        reruns = marker.kwargs.get("reruns")
+        if not isinstance(reruns, int) or isinstance(reruns, bool) or reruns < 1:
+            raise pytest.UsageError(
+                f"{item.nodeid}: flaky_harness({harness!r}) needs reruns as an "
+                "int >= 1"
+            )
+        if harness == pa_name:
+            return reruns
+    return None
 
 
 def _requires_profile_skip(item: pytest.Item) -> str | None:
