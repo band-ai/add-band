@@ -21,10 +21,14 @@ REPO="${NANOCLAW_REPO:-https://github.com/band-ai/nanoclaw-band.git}"
 # Capture env overrides before sourcing the pins (sourcing would clobber them).
 user_base="${NANOCLAW_REF:-}"
 user_payload="${NANOCLAW_PAYLOAD_REF:-}"
+user_sdk="${NANOCLAW_BAND_SDK_VERSION:-}"
+user_rest_client="${NANOCLAW_BAND_REST_CLIENT_VERSION:-}"
 # shellcheck source=../../pins.env
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/pins.env"
 BASE_REF="${user_base:-$NANOCLAW_REF}"
 PAYLOAD_REF="${user_payload:-$NANOCLAW_PAYLOAD_REF}"
+SDK_VERSION="${user_sdk:-$NANOCLAW_BAND_SDK_VERSION}"
+REST_CLIENT_VERSION="${user_rest_client:-$NANOCLAW_BAND_REST_CLIENT_VERSION}"
 
 # The payload set, verbatim from .claude/skills/add-band/SKILL.md (band/adapter).
 FILES=(
@@ -100,8 +104,8 @@ insert_after container/agent-runner/src/index.ts \
   "import './providers/index.js';" "import './band-lifecycle.js';"
 
 echo "==> installing pinned Band SDK deps"
-pnpm add @band-ai/sdk@0.1.6 @band-ai/rest-client@0.0.121
-( cd container/agent-runner && bun add @band-ai/sdk@0.1.6 )
+pnpm add "@band-ai/sdk@$SDK_VERSION" "@band-ai/rest-client@$REST_CLIENT_VERSION"
+( cd container/agent-runner && bun add "@band-ai/sdk@$SDK_VERSION" )
 
 echo "==> building host bundle + images"
 pnpm run build

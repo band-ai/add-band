@@ -314,10 +314,10 @@ Every component version is a dispatch input (`harnesses`,
 
 ## Pins
 
-Branch-tracking commit pins live in [`pins.env`](pins.env) — the single source
-of truth the harnesses, stacks, prepare script, and CI read; Renovate
-(`renovate.json` at the repo root) opens PRs to advance them. Everything else
-is pinned where it is consumed:
+Upstream refs and Renovate-managed package/image versions live in
+[`pins.env`](pins.env) — the single source of truth the harnesses, stacks,
+prepare script, and CI read. Renovate (`renovate.json` at the repo root) opens
+PRs to advance them. Components not tracked there are pinned where consumed:
 
 | What | Where | Value |
 | --- | --- | --- |
@@ -325,8 +325,8 @@ is pinned where it is consumed:
 | NanoClaw base + payload | `pins.env` (`NANOCLAW_REF` / `NANOCLAW_PAYLOAD_REF`) | commit SHAs tracking `main` / `band/adapter` |
 | OpenClaw Band channel plugin | `pins.env` (`OPENCLAW_CHANNEL_VERSION`) | npm version |
 | OpenClaw image | `stacks/openclaw/compose.yaml` | `openclaw/openclaw:2026.6.11` |
-| Hermes image | `stacks/hermes/Dockerfile` | `nousresearch/hermes-agent:v2026.7.7.2` |
+| Hermes image | `pins.env` (`HERMES_IMAGE_TAG`) | `nousresearch/hermes-agent:v2026.7.7.2` |
 | band-sdk + toolkit | `pyproject.toml` + `uv.lock` | git `main`, commit-pinned; refresh with `uv lock --upgrade-package band-sdk` |
 | model stand-in image | `stacks/standin/Dockerfile` | `python:3.13-alpine` + `aiohttp==3.14.1` |
-| Band SDK (NanoClaw payload) | `stacks/nanoclaw/prepare.sh` | `@band-ai/sdk@0.1.6` + `@band-ai/rest-client@0.0.121` |
+| Band SDK (NanoClaw payload) | `pins.env` (`NANOCLAW_BAND_SDK_VERSION` / `NANOCLAW_BAND_REST_CLIENT_VERSION`) | `@band-ai/sdk@0.1.6` + `@band-ai/rest-client@0.0.121` |
 | OneCLI gateway / CLI | `pa_settings.py` / `prepare.sh` | `1.36.0` / `v2.2.5` (nanoclaw-band's `versions.json`), CLI archive SHA-256-verified |

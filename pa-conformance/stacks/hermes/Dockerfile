@@ -9,7 +9,7 @@
 # pa-conformance/pins.env (single source of truth), and a moving-branch default
 # would be irreproducible — and, as the only changing input to the RUN below,
 # would let Docker reuse a stale cached layer after the branch moved.
-ARG HERMES_IMAGE=docker.io/nousresearch/hermes-agent:v2026.7.7.2
+ARG HERMES_IMAGE
 FROM ${HERMES_IMAGE}
 
 ARG BAND_HERMES_REF

@@ -168,6 +168,7 @@ jobs:
           source pa-conformance/pins.env
           {
             echo "BAND_HERMES_REF=${HERMES_PLUGIN_REF_INPUT:-$BAND_HERMES_REF}"
+            echo "HERMES_IMAGE_TAG=$HERMES_IMAGE_TAG"
             echo "NANOCLAW_REF=${NANOCLAW_REF_INPUT:-$NANOCLAW_REF}"
             echo "NANOCLAW_PAYLOAD_REF=$NANOCLAW_PAYLOAD_REF"
           } >> "$GITHUB_ENV"
@@ -227,9 +228,23 @@ jobs:
         if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'openclaw') }}
         run: docker compose -f pa-conformance/stacks/openclaw/compose.yaml pull gateway
 
-      - name: Run the conformance suite
+      - name: Run strict integration conformance
         working-directory: pa-conformance
+        env:
+          PA_TEST_LANE: integration
+          PA_MODEL_MODE: strict
         run: uv run pytest tests -v --tb=short
+
+      - name: Run model E2E conformance
+        working-directory: pa-conformance
+        env:
+          PA_TEST_LANE: e2e
+          PA_MODEL_MODE: passthrough
+        run: uv run pytest tests -v --tb=short
+
+      - name: Collect docker state for diagnosis
+        if: failure()
+        run: docker ps -a && docker compose ls -a
 
       # Pytest tears down stacks and Band resources on normal failure. This
       # covers local stacks after a killed process; the next run's guarded
@@ -237,7 +252,3 @@ jobs:
       - name: Tear down any surviving stacks
         if: always()
         run: bash pa-conformance/stacks/down-all.sh
-
-      - name: Collect docker state for diagnosis
-        if: failure()
-        run: docker ps -a && docker compose ls -a

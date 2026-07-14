@@ -7,6 +7,8 @@ The test is parametrized over the selected harnesses.
 
 from __future__ import annotations
 
+from secrets import token_hex
+
 import pytest
 
 from driver.exchange import marker

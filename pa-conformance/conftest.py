@@ -561,11 +561,36 @@ async def bootstrap_onboard(
         minted.append(agent_id)
         return ProvisionedAgent(id=agent_id, api_key="", name=agent_name)
 
-    yield _onboard
-    for agent_id in minted:
-        await resources.reap_agent(agent_id)
-    for harness in started:
-        await asyncio.to_thread(harness.down)
+    try:
+        yield _onboard
+    finally:
+        await _teardown_bootstrap(started, minted, resources)
+
+
+async def _teardown_bootstrap(
+    started: list[Harness], minted: list[str], resources: ResourceManager
+) -> None:
+    """Best-effort cleanup for F4's dedicated harnesses and minted agents.
+
+    A bootstrap test can mint more than one agent or start more than one stack.
+    Every cleanup action runs even if another one fails, so the suite's
+    process-level orphan sweep is a backstop rather than normal cleanup.
+    """
+    agent_cleanup = await asyncio.gather(
+        *(resources.reap_agent(agent_id) for agent_id in minted),
+        return_exceptions=True,
+    )
+    for agent_id, result in zip(minted, agent_cleanup):
+        if isinstance(result, Exception):
+            _log_cleanup_failure("agent cleanup", agent_id, result)
+
+    stack_cleanup = await asyncio.gather(
+        *(asyncio.to_thread(harness.down) for harness in started),
+        return_exceptions=True,
+    )
+    for harness, result in zip(started, stack_cleanup):
+        if isinstance(result, Exception):
+            _log_cleanup_failure("teardown", harness.name, result)
 
 
 async def _bring_up(
@@ -628,14 +653,6 @@ async def _teardown(
     # that never reaches Band fails tests, not bring-up — the stack logs
     # captured here, while the stacks are still up, are the only runtime
     # evidence.
-    def log_failure(action: str, harness: Harness, failure: Exception) -> None:
-        logger.error(
-            "%s of %s failed",
-            action,
-            harness.name,
-            exc_info=(type(failure), failure, failure.__traceback__),
-        )
-
     if dump_diagnostics:
         diagnostics = await asyncio.gather(
             *(asyncio.to_thread(harness.diagnostics) for harness in started),
@@ -643,7 +660,7 @@ async def _teardown(
         )
         for harness, result in zip(started, diagnostics):
             if isinstance(result, Exception):
-                log_failure("diagnostics", harness, result)
+                _log_cleanup_failure("diagnostics", harness.name, result)
             else:
                 logger.info("%s diagnostics before teardown:\n%s", harness.name, result)
     teardown = await asyncio.gather(
@@ -652,7 +669,7 @@ async def _teardown(
     )
     for harness, result in zip(started, teardown):
         if isinstance(result, Exception):
-            log_failure("teardown", harness, result)
+            _log_cleanup_failure("teardown", harness.name, result)
     # Reap every room each agent is in: driver-provisioned rooms and rooms the
     # agent created on its own (owner hubs). Iterates every PROVISIONED agent,
     # not just the live PAs — a harness that failed readiness may still have
@@ -665,6 +682,16 @@ async def _teardown(
                 await resources.reap_room(room_id)
         except Exception:
             logger.exception("room cleanup for %s failed", agent.name)
+
+
+def _log_cleanup_failure(action: str, target: str, failure: Exception) -> None:
+    """Report a failed best-effort cleanup action without aborting its peers."""
+    logger.error(
+        "%s of %s failed",
+        action,
+        target,
+        exc_info=(type(failure), failure, failure.__traceback__),
+    )
 
 
 async def _agent_handle(agent: ProvisionedAgent, settings: BaselineSettings) -> str:

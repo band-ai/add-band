@@ -20,6 +20,15 @@
     },
     {
       "customType": "regex",
+      "description": "Docker image tags in pa-conformance/pins.env",
+      "managerFilePatterns": ["/^pa-conformance/pins\\.env$/"],
+      "matchStrings": [
+        "# renovate: datasource=docker depName=(?<depName>\\S+)\\n[A-Z_]+=(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "description": "npm version pins in pa-conformance/pins.env",
       "managerFilePatterns": ["/^pa-conformance/pins\\.env$/"],
       "matchStrings": [

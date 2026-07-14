@@ -21,20 +21,27 @@ export NANOCLAW_HOST_PATH="${NANOCLAW_HOST_PATH:-/tmp}"
 # -f so named volumes declared in the compose file are removed too (a bare
 # `down` by project label leaves them behind). Tab-separated: name<TAB>files.
 failed=0
-while IFS=$'\t' read -r name cfgs; do
-  files=()
-  IFS=',' read -ra parts <<< "$cfgs"
-  for f in "${parts[@]}"; do [ -n "$f" ] && files+=(-f "$f"); done
-  echo "==> docker compose -p $name down -v"
-  if ! docker compose "${files[@]}" -p "$name" down -v --remove-orphans; then
-    echo "teardown failed for compose project $name" >&2
-    failed=1
-  fi
-done < <(docker compose ls -a --format json 2>/dev/null \
+if ! projects="$(docker compose ls -a --format json \
   | python3 -c 'import json,sys
 for p in json.load(sys.stdin):
     if p["Name"].startswith(("pa-nanoclaw-", "pa-openclaw-", "pa-hermes-")):
-        print(p["Name"] + "\t" + (p.get("ConfigFiles") or ""))')
+        print(p["Name"] + "\t" + (p.get("ConfigFiles") or ""))')"; then
+  echo "failed to list PA-conformance compose projects" >&2
+  exit 1
+fi
+
+if [ -n "$projects" ]; then
+  while IFS=$'\t' read -r name cfgs; do
+    files=()
+    IFS=',' read -ra parts <<< "$cfgs"
+    for f in "${parts[@]}"; do [ -n "$f" ] && files+=(-f "$f"); done
+    echo "==> docker compose -p $name down -v"
+    if ! docker compose "${files[@]}" -p "$name" down -v --remove-orphans; then
+      echo "teardown failed for compose project $name" >&2
+      failed=1
+    fi
+  done <<< "$projects"
+fi
 
 # NanoClaw's host spawns per-agent sibling containers through the docker
 # socket — outside compose, on the upstream's fixed `nanoclaw-compose` network,
