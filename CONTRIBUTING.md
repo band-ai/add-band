@@ -30,6 +30,28 @@ upstream).
    ```
    See [TESTING.md](TESTING.md) for the full local-testing workflow.
 4. Add a row to the **Integrations** table in the [root README](README.md).
+5. **Personal-agent harnesses also join the conformance suite** — see below.
+
+## Personal agents: conformance is part of the integration
+
+A personal-agent harness (NanoClaw, OpenClaw, Hermes, …) isn't done when its
+bootstrap works once — it has to keep proving it comes up headlessly and talks
+on Band. That proof lives in [`pa-conformance/`](pa-conformance/README.md), and
+a new PA harness adds itself there:
+
+1. A runner in `pa-conformance/harness/<name>.py` implementing the four verbs
+   (`up(identity) · wait_ready() · attach_room(room) · down()`), registered in
+   the `HARNESSES` map.
+2. Deployment config under `pa-conformance/stacks/<name>/` (compose file; a
+   Dockerfile or prepare script only if there's no published image).
+
+The tests themselves need **no** changes: they parametrize over the harness
+registry, so liveness, memory, fan-out, and the inter-agent exchanges pick the
+new harness up automatically. Verify with:
+
+```bash
+cd pa-conformance && E2E_TESTS_ENABLED=true PA_HARNESSES=<name> uv run pytest tests -v
+```
 
 ## The one rule the web app relies on
 

@@ -1,0 +1,58 @@
+# Pinned environment + pytest config for the PA conformance suite; not a package.
+#
+# band-sdk installs from git (main; uv.lock pins the commit — refresh with
+# `uv lock --upgrade-package band-sdk`), not PyPI: the suite also imports the
+# repo's baseline toolkit (tests/e2e/baseline), which is not shipped in the
+# wheel. driver/sdk.py auto-clones the toolkit at the installed commit, read
+# from the dist's PEP-610 direct_url.json. BAND_SDK_PATH overrides that with an
+# existing checkout (shared by both the SDK and its toolkit).
+[project]
+name = "pa-conformance"
+version = "0.0.0"
+description = "PA conformance (INT-893): live bring-up + Band driving of NanoClaw, OpenClaw, Hermes"
+requires-python = ">=3.11,<3.14"  # band-sdk has no 3.14 wheels
+dependencies = [
+    # What the suite + the SDK's baseline toolkit import directly.
+    "band-sdk",
+    "pydantic-settings>=2",
+    "python-dotenv>=1",
+    "rich>=15.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=1",
+    "pytest-timeout>=2",
+    # The model stand-in's runtime (stacks/standin/Dockerfile pins the same
+    # version); its hermetic tests drive the server in-process.
+    "aiohttp==3.14.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+band-sdk = { git = "https://github.com/band-ai/band-sdk-python", branch = "main" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "known_gap(harness, reason, intermittent=False): xfail a target harness's active, ticketed defect in mandatory behavior; XPASS fails the suite so the marker must be removed, except intermittent=True defects whose passing run does not prove resolution (see conftest.pytest_collection_modifyitems)",
+    "harness_skip(harness, reason): skip one harness only when the suite cannot observe or drive this scenario there",
+    "requires_profile(field, ...): skip on harnesses whose declared Profile field is False, UNKNOWN, or UNSUPPORTED — the declarative form of a profile-fact skip; reference fields as PROFILE_FIELD.<name> (harness/contract.py) and the reason is derived from the declaration (see conftest._requires_profile_skip)",
+    "hermetic: an in-process infra test (the model stand-in's own tests) that needs neither Band nor a harness — exempt from the live E2E gate (see conftest.pytest_runtest_setup)",
+    "integration: deterministic hosted-Band coverage; requires PA_TEST_LANE=integration and PA_MODEL_MODE=strict",
+    "e2e: hosted-Band coverage that permits real model inference; requires PA_TEST_LANE=e2e and PA_MODEL_MODE=passthrough",
+]
+asyncio_mode = "auto"
+asyncio_default_test_loop_scope = "session"
+asyncio_default_fixture_loop_scope = "session"
+# One shared bound per test, generous because the first test's setup carries
+# the whole session bring-up (3 harness stacks). The real waits inside tests
+# are governed by their own, much tighter deadlines (capture deadlines, the
+# exchange's 90s bound, wait_ready's per-harness timeout).
+timeout = 1800
+timeout_method = "thread"
+log_cli = true
+log_cli_level = "INFO"

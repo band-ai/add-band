@@ -1,0 +1,28 @@
+# The model stand-in (stacks/standin/server.py) as a compose fragment, merged
+# in as an extra `-f` by every harness ONLY when the stand-in is enabled
+# (Harness.standin_overrides) — so PA_STANDIN=off means the service genuinely
+# does not exist, no crash-looping token-less container.
+#
+# It joins the project's default network under the alias `standin`: for
+# NanoClaw that network is the fixed `nanoclaw-compose`, so sibling agent
+# containers spawned through the Docker socket resolve it too.
+#
+# Safe `:-` defaults keep the file parseable for teardown-only replays
+# (stacks/down-all.sh reconstructs the `-f` list from `compose ls`); a real
+# bring-up always sets the token, and the server refuses an empty one.
+services:
+  standin:
+    # Absolute context via env: with multiple -f files, a relative build path
+    # would resolve against the base compose file's directory, not this one.
+    build: ${PA_STANDIN_DIR:-.}
+    environment:
+      - STANDIN_CONTROL_TOKEN=${PA_STANDIN_CONTROL_TOKEN:-}
+      - STANDIN_MODE=${PA_MODEL_MODE:-passthrough}
+      # Replaces absent/placeholder client auth on forward — needed only for
+      # NanoClaw siblings (their real key rides the OneCLI https MITM, which
+      # never sees plain-http egress to the stand-in); harmless elsewhere,
+      # where the harness forwards its own real key.
+      - STANDIN_ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8081" # control API — dynamic host port, read via `compose port`
+    restart: unless-stopped

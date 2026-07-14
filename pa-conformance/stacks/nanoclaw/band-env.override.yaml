@@ -1,0 +1,15 @@
+# Merged over the upstream docker-compose.yml (compose merges volumes by
+# container target): redirect the host's /app/.env bind mount from the shared
+# checkout to the per-run env file the runner writes, so identity injection
+# never touches the reusable checkout. The /dev/null fallback keeps the file
+# parseable for teardown-only invocations (stacks/down-all.sh replays the
+# project's recorded config files with no run env).
+#
+# The model stand-in service is a separate fragment (stacks/standin/) the
+# runner adds as another -f only when enabled; NanoClaw's ANTHROPIC_BASE_URL
+# rides the per-run band.env (the upstream provider seam src/providers/claude.ts
+# reads it there and injects it into every sibling agent container).
+services:
+  nanoclaw:
+    volumes:
+      - ${PA_BAND_ENV_FILE:-/dev/null}:/app/.env

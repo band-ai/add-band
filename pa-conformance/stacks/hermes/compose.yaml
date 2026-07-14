@@ -1,0 +1,31 @@
+# Hermes gateway for the PA conformance run.
+#
+# Deployment config only (this repo never vendors integration code): mirrors
+# nousresearch/hermes-agent's own docker-compose.yml with two differences:
+#   - image: the derived Band image from this directory's Dockerfile
+#   - no `network_mode: host` and no dashboard service: the gateway only needs
+#     outbound reach to Band, so the default bridge network suffices.
+services:
+  gateway:
+    image: ${PA_HERMES_IMAGE:-pa-hermes:local}
+    build:
+      context: .
+      args:
+        HERMES_IMAGE: ${HERMES_IMAGE:-docker.io/nousresearch/hermes-agent:v2026.7.7.2}
+        # Pin from pa-conformance/pins.env; empty default keeps the file
+        # parseable for teardown-only invocations — the Dockerfile guard fails
+        # a build that reaches it without a value.
+        BAND_HERMES_REF: ${BAND_HERMES_REF:-}
+    command: ["gateway", "run"]
+    environment:
+      - HERMES_UID=${PA_UID:?host uid — files on the bind mount must stay host-owned}
+      - HERMES_GID=${PA_GID:?host gid}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # The model stand-in seam: the harness sets this (harness/contract.py
+      # standin_env) to route model calls through the standin service, added
+      # by the stacks/standin/ compose fragment when the stand-in is enabled.
+      # Passed through from the compose environment like ANTHROPIC_API_KEY.
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-}
+    volumes:
+      - ${PA_HERMES_HOME:?per-run state dir (bind-mounted as the hermes home)}:/opt/data
+    restart: unless-stopped

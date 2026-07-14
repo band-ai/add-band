@@ -23,7 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 # Top-level dirs that are not integrations.
-STRUCTURAL = {"scripts", "tests"}
+STRUCTURAL = {"scripts", "tests", "pa-conformance"}
 
 # Stubs that don't ship a shell bootstrap.sh, so the catalog gate skips them.
 # Listing one here is a deliberate opt-out; the drift test fails for any

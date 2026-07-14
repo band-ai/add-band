@@ -12,9 +12,10 @@ This is the Codex variant. Sibling files: `claude/bootstrap-prompt.md` (Claude C
 These instructions fetch two kinds of external resources, both always from `main`:
 
 1. **`scripts/register-agent.sh`** from `band-ai/add-band` (the repo where this file lives) — the helper used to provision the agents in Step 5.
-2. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6. `main` matches what `band-sdk` on PyPI is built from, so the scaffolded code and the installed library stay aligned.
+2. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6.
 
-These instructions may themselves be loaded from any branch (a feature branch during testing, `main` after merge) — no branch-sniffing is needed because everything they reference is pinned to `main`.
+These instructions may themselves be loaded from any branch. Their external
+references use each repository's `main` branch.
 
 ### Example file map (from `band-sdk-python/main`)
 
