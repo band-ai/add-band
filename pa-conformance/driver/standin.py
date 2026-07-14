@@ -91,6 +91,7 @@ class ModelCall:
     system: object  # string or content-block list, as the harness sent it
     messages: list
     tools: tuple[Tool, ...]
+    tools_truncated: bool
     streamed: bool
     served: str  # "scripted" | "passthrough" | "rejected"
     upstream_status: int | None
@@ -110,6 +111,7 @@ class ModelCall:
             system=record.get("system"),
             messages=record.get("messages") or [],
             tools=tools,
+            tools_truncated=isinstance(raw_tools, dict) and bool(raw_tools.get("truncated")),
             streamed=bool(record.get("streamed")),
             served=record["served"],
             upstream_status=record.get("upstream_status"),
@@ -122,9 +124,9 @@ class ModelCall:
         which case a `carries()` miss may be a false negative (the needle could
         sit past the retained head). Surfaced in await_call's failure message
         so an oversized turn is diagnosable, not silently wrong."""
-        return any(
+        return self.tools_truncated or any(
             isinstance(field, dict) and field.get("truncated")
-            for field in (self.system, self.messages, self.tools)
+            for field in (self.system, self.messages)
         )
 
     @property

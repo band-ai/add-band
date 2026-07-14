@@ -101,7 +101,7 @@ async def test_message_for_another_agent_sent_while_down_stays_unprocessed(
         await pa.wait_ready()
 
         (await chat.ask(token=control)).assert_contains_any([control])
-        leaked = said_by(chat.room, pa.agent.id, ghost)
+        leaked = said_by(chat.room, pa.agent.id, ghost, excluding=control)
 
     assert not leaked, (
         f"{pa.harness.name} processed a turn addressed to another agent "

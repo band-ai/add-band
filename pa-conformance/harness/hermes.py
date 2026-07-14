@@ -149,7 +149,14 @@ class HermesHarness(Harness):
             timeout_s=120.0,
             desc=f"hermes container init + access policy ({self.stack.project})",
         )
-        self.stack.restart("gateway")
+        # Bounce the gateway so it picks up the freshly-installed access policy,
+        # resetting the log while it is down for the same reason stop() does
+        # (see _reset_gateway_log): the pre-restart boot's success line survives
+        # on the bind mount and would otherwise satisfy readiness before the new
+        # boot verifies against Band.
+        self.stack.stop("gateway")
+        self._reset_gateway_log()
+        self.stack.start("gateway")
 
     def wait_ready(self) -> None:
         wait_for(
@@ -167,13 +174,18 @@ class HermesHarness(Harness):
         return bool(json.loads(result.stdout).get("success"))
 
     def stop(self) -> None:
-        """Halt the gateway, then reset its log: verify_gateway.py (the
-        readiness probe) scans the tail of gateway.log for success patterns,
-        and the log survives restarts on the bind mount — a past boot's
-        "Connected as agent" line would satisfy readiness for the NEXT boot.
-        Truncated while stopped so wait_ready() reflects only the current
-        process; container-level diagnostics (docker logs) are unaffected."""
+        """Halt the gateway, then reset its log so wait_ready() reflects only
+        the current process; container-level diagnostics (docker logs) are
+        unaffected."""
         super().stop()
+        self._reset_gateway_log()
+
+    def _reset_gateway_log(self) -> None:
+        """Truncate gateway.log so a past boot cannot satisfy the next boot's
+        readiness. verify_gateway.py (the readiness probe) scans the tail of
+        gateway.log for success patterns, and the log survives restarts on the
+        bind mount — a past boot's "Connected as agent" line would otherwise
+        satisfy readiness for the NEXT boot."""
         gateway_log = self.home / "logs" / "gateway.log"
         if gateway_log.exists():
             gateway_log.write_text("")

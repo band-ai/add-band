@@ -3,9 +3,11 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Claude Code local state & worktrees — shared skills are shipped
+# Claude Code local state & worktrees — only the shipped pa-conformance skill is tracked
 **/.claude/*
 !**/.claude/skills/
+**/.claude/skills/*
+!**/.claude/skills/pa-conformance/
 
 # Local-only bootstrap variants (e.g. editable installs for live testing) — never shipped
 */bootstrap.local.sh

@@ -32,11 +32,16 @@ fi
 
 if [ -n "$projects" ]; then
   while IFS=$'\t' read -r name cfgs; do
+    # Guard the array expansions: under macOS's bash 3.2, `set -u` makes
+    # "${empty[@]}" a fatal "unbound variable", which a project with no
+    # ConfigFiles would otherwise trip mid-sweep.
     files=()
-    IFS=',' read -ra parts <<< "$cfgs"
-    for f in "${parts[@]}"; do [ -n "$f" ] && files+=(-f "$f"); done
+    if [ -n "$cfgs" ]; then
+      IFS=',' read -ra parts <<< "$cfgs"
+      for f in "${parts[@]}"; do [ -n "$f" ] && files+=(-f "$f"); done
+    fi
     echo "==> docker compose -p $name down -v"
-    if ! docker compose "${files[@]}" -p "$name" down -v --remove-orphans; then
+    if ! docker compose ${files[@]:+"${files[@]}"} -p "$name" down -v --remove-orphans; then
       echo "teardown failed for compose project $name" >&2
       failed=1
     fi

@@ -203,10 +203,22 @@ def _harness_skip_reason(item: pytest.Item) -> str | None:
     spec = getattr(item, "callspec", None)
     if spec is None:
         return None
-    skips = {
-        skip.args[0]: skip.kwargs["reason"]
-        for skip in item.iter_markers("harness_skip")
-    }
+    skips: dict[str, str] = {}
+    for skip in item.iter_markers("harness_skip"):
+        if not skip.args:
+            raise pytest.UsageError(
+                f"{item.nodeid}: harness_skip needs the harness name as its "
+                "first argument"
+            )
+        reason = skip.kwargs.get("reason")
+        if reason is None and len(skip.args) == 2:
+            reason = skip.args[1]
+        if reason is None:
+            raise pytest.UsageError(
+                f"{item.nodeid}: harness_skip({skip.args[0]!r}) needs a reason "
+                "(positional or reason=)"
+            )
+        skips[skip.args[0]] = reason
     return skips.get(spec.params.get("pa_name"))
 
 
@@ -392,7 +404,7 @@ class Owner:
 @pytest.fixture(scope="session")
 async def owner(user_client: AsyncRestClient) -> Owner:
     profile = (await user_client.human_api_profile.get_my_profile()).data
-    name = f"{profile.first_name} {profile.last_name}".strip()
+    name = " ".join(part for part in (profile.first_name, profile.last_name) if part).strip()
     assert name and profile.id, "owner profile has no name or id"
     return Owner(id=profile.id, name=name)
 
