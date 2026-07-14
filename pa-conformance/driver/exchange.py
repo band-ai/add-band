@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from faker import Faker
+
 from driver.sdk import ProvisionedAgent, Replies, ReplyCapture, UserOps
 
 # The bounds are part of the assertion, not tuning knobs — an env override
@@ -39,6 +41,29 @@ def marker(run_id: str, *, prefix: str = "PA-MARK") -> str:
     """A deterministic, run-scoped token: stale messages from earlier runs
     can never satisfy a predicate looking for it."""
     return f"{prefix}-{run_id.upper()}"
+
+
+def liveness_name(run_id: str, *, salt: str = "") -> str:
+    """A natural, run-scoped person name for a liveness probe.
+
+    Faker-generated and seeded by (run id, salt) so it is deterministic and
+    unique per probe yet reads as an ordinary name. A control-code-shaped token
+    (marker()) trips a hardened harness's prompt-injection guard, which refuses
+    to echo it; a name woven into a joke is answered normally. Use this — with
+    liveness_prompt() — wherever a probe only needs the agent to prove it
+    replied, and marker() where an opaque run-scoped token is the assertion."""
+    faker = Faker()
+    faker.seed_instance(f"{run_id}:{salt}")
+    return faker.name()
+
+
+def liveness_prompt(name: str) -> str:
+    """A guard-safe liveness ask: frame the probe as a joke naming an ordinary
+    person, so a hardened harness answers instead of refusing to echo a token."""
+    return (
+        f'Tell me a short, light-hearted one-line joke about someone named '
+        f'"{name}", and use that exact name in the joke.'
+    )
 
 
 def _said(message, sender_id: str, token: str) -> bool:

@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from conftest import PA, RoomFactory, selected_harnesses
-from driver.exchange import marker
+from driver.exchange import liveness_name, liveness_prompt
 from driver.sdk import CaptureFactory, UserOps
 from driver.waits import wait_for_reply_from
 from harness import HARNESS
@@ -27,14 +27,13 @@ async def test_replies_to_direct_message(
     capture: CaptureFactory,
     run_id: str,
 ) -> None:
-    token = marker(run_id, prefix="PA-L0")
+    token = liveness_name(run_id)
     room_id = await room_with([pa], title=f"pa-liveness-{pa.harness.name}")
 
     async with capture(room_id) as room:
         await user_ops.send_message(
             room_id,
-            f"Liveness check from your owner: reply with {token} to confirm "
-            "you received this message.",
+            liveness_prompt(token),
             mention_id=pa.agent.id,
             mention_name=pa.agent.name,
         )
@@ -73,12 +72,11 @@ async def test_hermes_delivers_every_turn(
 
     async with capture(room_id) as room:
         for i in range(3):
-            token = marker(run_id, prefix=f"PA-INT990-{i}")
+            token = liveness_name(run_id, salt=f"int990-{i}")
             since = len(room.messages)
             await user_ops.send_message(
                 room_id,
-                f"Liveness check from your owner: reply with {token} to "
-                "confirm you received this message.",
+                liveness_prompt(token),
                 mention_id=hermes.agent.id,
                 mention_name=hermes.agent.name,
             )

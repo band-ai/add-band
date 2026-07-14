@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import pytest
 
+from driver.exchange import liveness_prompt
 from driver.sdk import ProvisionedAgent, Replies, ReplyCapture, UserOps
 from driver.standin import Decision, ModelCall, ModelStandIn, Tool, call, decision
 from driver.waits import wait_for_reply_from
@@ -147,10 +148,12 @@ class OwnerChat:
         return (decision(text=reply or f"Echo {token} confirmed."),) * _SCRIPT_DEPTH
 
     async def _send(self, token: str, prompt: str | None) -> str:
-        return await self._send_prompt(
-            prompt
-            or f"Owner check: reply with {token} to confirm you received this message."
-        )
+        # Default liveness ask is a joke naming the token: a hardened harness
+        # (Hermes) refuses to echo a control-code-shaped token, so callers that
+        # rely on this default pass a natural liveness_name() token. Scripted
+        # turns override prompt or run against the stand-in, where the wording
+        # is inert.
+        return await self._send_prompt(prompt or liveness_prompt(token))
 
     async def _send_prompt(self, text: str) -> str:
         return await self._user_ops.send_message(

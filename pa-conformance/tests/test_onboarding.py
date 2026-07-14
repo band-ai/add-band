@@ -20,7 +20,7 @@ import pytest
 
 from conftest import BootstrapOnboard
 from driver.chat import OwnerChat
-from driver.exchange import marker
+from driver.exchange import liveness_name
 from driver.sdk import CaptureFactory, ResourceManager, UserOps
 
 pytestmark = pytest.mark.e2e
@@ -45,7 +45,7 @@ async def test_published_bootstrap_onboards_a_responding_agent(
     run_id: str,
 ) -> None:
     agent = await bootstrap_onboard(pa_name)
-    token = marker(run_id, prefix="PA-F4")
+    token = liveness_name(run_id)
     room_id = await resources.provision_room(
         title=f"pa-onboard-{pa_name}", participants=[agent.id]
     )

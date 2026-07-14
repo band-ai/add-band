@@ -32,7 +32,7 @@ from __future__ import annotations
 import pytest
 
 from conftest import OwnerChatFactory
-from driver.exchange import marker
+from driver.exchange import liveness_name, marker
 from harness import HARNESS
 from harness.contract import PROFILE_FIELD
 from driver.sdk import DeliveryStatus, ResourceManager, UserOps
@@ -58,7 +58,8 @@ async def test_reconnects_and_serves_known_room(
     bounce — attach_room is never run again, so the post-restart reply proves
     both the reconnection and that the room wiring rehydrated from the
     persisted store."""
-    pre, post = marker(run_id, prefix="PA-L4-PRE"), marker(run_id, prefix="PA-L4-POST")
+    pre = liveness_name(run_id, salt="l4-pre")
+    post = liveness_name(run_id, salt="l4-post")
 
     async with owner_chat(pa) as chat:
         (await chat.ask(token=pre)).assert_contains_any([pre])
@@ -80,9 +81,9 @@ async def test_message_for_another_agent_sent_while_down_stays_unprocessed(
     not be retroactively processed on rehydration — a reconnect that scrapes
     room history and answers unaddressed turns would surface here. The
     mention target is a provisioned decoy agent with no harness behind it."""
-    base = marker(run_id, prefix="PA-L4-BASE")
+    base = liveness_name(run_id, salt="l4-base")
     ghost = marker(run_id, prefix="PA-L4-GHOST")
-    control = marker(run_id, prefix="PA-L4-CTRL")
+    control = liveness_name(run_id, salt="l4-ctrl")
     # Named per harness: provisioned agent names are run-scoped, and every
     # harness param provisions its own decoy in the same session.
     decoy = await resources.provision_agent(f"restart-decoy-{pa.harness.name}")
@@ -171,8 +172,8 @@ async def test_processed_turn_not_reanswered_after_restart(
     harness-neutral observable; tool-call-level idempotency needs the Tier-1
     injection seam (INT-986). Replies carrying the control token are excluded
     so a reply quoting earlier context cannot false-positive."""
-    token = marker(run_id, prefix="PA-L4-ONCE")
-    control = marker(run_id, prefix="PA-L4-CTRL")
+    token = liveness_name(run_id, salt="l4-once")
+    control = liveness_name(run_id, salt="l4-reanswer-ctrl")
 
     async with owner_chat(pa) as chat:
         (await chat.ask(token=token)).assert_contains_any([token])
