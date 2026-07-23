@@ -2,8 +2,43 @@
 # Connect this machine's Hermes agent to Band, then hand off setup to the add-band skill.
 set -euo pipefail
 
+# Locate the `hermes` entrypoint. Hosted/managed Hermes runtimes (e.g. Nous
+# Research) install to a fixed prefix like /opt/hermes/bin that a non-login
+# shell's PATH usually doesn't include, so a bare `command -v hermes` fails even
+# though Hermes is installed and the run dies with a misleading "install hermes
+# first". Honor an explicit HERMES_BIN override, then PATH, then a short list of
+# well-known install locations.
+find_hermes() {
+  if [ -n "${HERMES_BIN:-}" ]; then
+    [ -x "$HERMES_BIN" ] && { printf '%s' "$HERMES_BIN"; return 0; }
+    echo "HERMES_BIN=$HERMES_BIN is not an executable file" >&2; return 1
+  fi
+  local p
+  p="$(command -v hermes 2>/dev/null)" && { printf '%s' "$p"; return 0; }
+  for p in \
+    /opt/hermes/bin/hermes \
+    "${HOME:-}/.hermes/bin/hermes" \
+    "${HOME:-}/.local/bin/hermes" \
+    /usr/local/bin/hermes \
+    /opt/homebrew/bin/hermes; do
+    [ -x "$p" ] && { printf '%s' "$p"; return 0; }
+  done
+  return 1
+}
+hermes_bin="$(find_hermes)" || {
+  echo "can't find the 'hermes' command. If Hermes lives somewhere unusual, set HERMES_BIN=/path/to/hermes and re-run; otherwise install hermes first." >&2
+  exit 1
+}
+# Put the resolved dir on PATH so the bare `hermes ...` calls later in this
+# script resolve even when Hermes wasn't on PATH to begin with. Do this before
+# the uv check so a hermes that bundles uv alongside it (common on hosted
+# runtimes) is found too.
+case ":$PATH:" in
+  *":$(dirname "$hermes_bin"):"*) ;;
+  *) PATH="$(dirname "$hermes_bin"):$PATH"; export PATH ;;
+esac
+
 command -v uv >/dev/null || { echo "install uv first: https://docs.astral.sh/uv/"; exit 1; }
-command -v hermes >/dev/null || { echo "install hermes first"; exit 1; }
 
 # Get your Band API key: paste it at the prompt (pre-set BAND_API_KEY to skip;
 # BAND_USER_API_KEY is honored as an alias).
@@ -19,9 +54,9 @@ export BAND_API_KEY
 
 # Install the band platform into the same Python that runs `hermes`. Don't assume a
 # `venv/` beside the project dir — layouts vary (.venv, FHS/root, custom dir). Derive
-# the interpreter from the `hermes` entrypoint: follow a launcher wrapper to the real
-# console script, read its shebang, and fall back to a Python alongside it.
-hermes_bin="$(command -v hermes)"
+# the interpreter from the `hermes` entrypoint (resolved above): follow a launcher
+# wrapper to the real console script, read its shebang, and fall back to a Python
+# alongside it.
 tgt="$(sed -n 's/^exec "\([^"]*\)".*/\1/p' "$hermes_bin" 2>/dev/null | head -1)"
 [ -n "$tgt" ] && hermes_bin="$tgt"
 hermes_python="$(sed -n '1s/^#![[:space:]]*//p' "$hermes_bin" 2>/dev/null)"; hermes_python="${hermes_python%% *}"
