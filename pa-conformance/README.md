@@ -98,7 +98,7 @@ touches the toolkit's namespace.
 | Verb | Meaning |
 | --- | --- |
 | `up(identity)` | start the stack, wired to a pre-provisioned Band agent |
-| `wait_ready()` | block until the agent is live on Band (or `ReadyTimeout`) |
+| `wait_ready()` | block until the harness's readiness probe passes (or `ReadyTimeout`) |
 | `attach_room(room)` | wire a driver-created room in (no-op except NanoClaw) |
 | `down()` | stop everything, remove local state — safe after a partial `up()` |
 
@@ -222,9 +222,10 @@ additive and needs **no test changes**.
    - `up(identity)` — start the stack, wired to the **injected** `BandIdentity`
      (`agent_id`, `api_key`). Never register your own agent — the driver owns
      every Band identity so teardown stays centralized.
-   - `wait_ready()` — block until the agent is live on Band, else raise
-     `ReadyTimeout` (via the `wait_for(probe, timeout_s=…, desc=…)` helper).
-     Prove a real Band round-trip where you can, not just "process is up".
+   - `wait_ready()` — block until the harness's readiness probe passes, else
+     raise `ReadyTimeout` (via the `wait_for(probe, timeout_s=…, desc=…)`
+     helper). The exact signal varies by harness; do not infer Band reachability
+     from it. Prove a real Band round-trip where you can.
    - `attach_room(room_id)` — default no-op (harnesses that answer any room
      they're `@mention`ed in). Override only if the harness routes per
      registered room, as NanoClaw does.

@@ -1,8 +1,7 @@
 """F4 — onboarding via the published catalog path.
 
-The conformance bar (todo.md, "F4 — Onboarding & publishing"): following the
-catalog's own bootstrap from a clean install reaches an agent that serves on
-Band. The bootstrap mints its own agent from the user key — nothing is
+Following the catalog's own bootstrap from a clean install reaches an agent
+that serves on Band. The bootstrap mints its own agent from the user key — nothing is
 pre-provisioned — and it runs VERBATIM, so what breaks for users breaks here
 first (including unpinned pieces the guide ships, like OpenClaw's `@latest`
 channel plugin). The minted agent's live reply is the "connected" proof;

@@ -8,8 +8,7 @@ survive) through the PA async wrappers, and proves rehydration behaviorally —
 a post-restart answer in a pre-restart room IS the store surviving; no
 store-inspection API is involved.
 
-Level-bar mapping (todo.md, "L4 — Restart / rehydration"): reconnection,
-known-room reattachment, offline-message handling, and strict thread recovery
+Reconnection, known-room reattachment, offline-message handling, and strict thread recovery
 (the post-restart turn's composed model context, read from the stand-in's
 recording) are covered here. Conversation continuity can be restored through a
 transcript, summary, or retrieval policy, so the wire-level transcript row is
