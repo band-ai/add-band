@@ -16,11 +16,11 @@ Run on the host where you want NanoClaw to live. The Band web app gives you a
 `curl … | bash` one-liner and your Band API key; run it and paste the key when the
 script prompts. The script is [`bootstrap.sh`](bootstrap.sh).
 
-It clones or updates `band-ai/nanoclaw-band` into `${NANOCLAW_HOME:-$HOME/nanoclaw-band}`,
-registers a Band agent with your Band **API key**, writes the returned **agent**
-credentials to `.env` and `data/env/env`, then hands off to the fork's
-`add-band` skill. The skill mainly walks you through the remaining NanoClaw-side
-connection steps: setup, launch, channel wiring, and verification.
+It uses `NANOCLAW_HOME` when set; otherwise it uses the current NanoClaw checkout,
+clones into an empty current directory, or clones into `./nanoclaw-band`.
+It registers a Band agent with your Band **API key**, stores the returned agent
+credentials in `.env` and the OneCLI vault, then hands off to the fork's
+`add-band` skill for NanoClaw setup, launch, channel wiring, and verification.
 
 ## Source
 
@@ -31,8 +31,8 @@ live in the Band-ready NanoClaw fork:
 
 ## Prereqs
 
-- `git` and shell access on the host where NanoClaw should run. The snippet creates
-  or updates `${NANOCLAW_HOME:-$HOME/nanoclaw-band}`.
+- `git` and shell access on the host where NanoClaw should run. Set
+  `NANOCLAW_HOME` to choose the checkout location.
 - NanoClaw runtime prereqs (`node`, `pnpm`, Docker/container runtime as required
   by the fork's setup flow).
 - A Band account + **API key** — paste it at the prompt (or pre-set

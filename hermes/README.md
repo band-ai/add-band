@@ -20,18 +20,13 @@ script prompts. The script ([`bootstrap.sh`](bootstrap.sh)) does only the two th
 bash is uniquely placed to do, then hands off to the agent:
 
 1. **Install** the `band` plugin (which ships the `add-band` skill) into the
-   gateway's own uv-managed Python from a Git ref. A production PR should switch
-   this to a pinned PyPI install only after `hermes-band-platform` is published
-   and verified on PyPI.
+   gateway's own Python from the configured Git ref.
 2. **Mint** a Band agent from your Band API key — read by the package's
    temporary bundled `skills/add-band/scripts/register_agent.py` helper run by
    the gateway Python, so the broad key never reaches the agent's LLM. The
    agent-scoped `BAND_AGENT_ID` + `BAND_API_KEY` it returns **replace** your key
-   in the gateway `.env` (same `BAND_API_KEY` name, now narrowly scoped); the
-   broad shell value is then dropped. Replace the helper with the SDK CLI
-   once `band.cli.register_agent` is published in `band-sdk`, but keep the
-   helper's browser-like registration headers in that CLI path to avoid
-   Cloudflare 1010 on sparse script clients.
+   in the gateway `.env` (the key retains the `BAND_API_KEY` name); the broad
+   shell value is then dropped.
 3. **Hand off** to `hermes chat -s add-band`. The skill runs the steps that need
    agent smarts rather than bash: it completes plugin setup, wires Band in as a
    communication channel with context isolation, bootstraps the **Hermes Hub**,
@@ -45,8 +40,8 @@ bash is uniquely placed to do, then hands off to the agent:
 ## Source
 
 - **Repo:** [`band-ai/hermes-band-platform`](https://github.com/band-ai/hermes-band-platform)
-  — the bootstrap installs from `BAND_HERMES_REF` (`main` by default while
-  unreleased). Pin a tag/commit for a reproducible install.
+  — the bootstrap installs from `BAND_HERMES_REF` (`main` by default). Set a
+  tag or commit for a reproducible install.
 - **Skill:** `hermes_band_platform/skills/add-band/SKILL.md` (also available as
   `hermes /add-band` once the plugin is installed).
 - **Fresh box / non-Hermes agent:** the one-shot install prompt at

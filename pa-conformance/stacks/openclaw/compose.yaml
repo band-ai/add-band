@@ -1,0 +1,45 @@
+# OpenClaw gateway for the PA conformance run.
+#
+# Deployment config only: follows openclaw/openclaw's own docker-compose.yml,
+# reduced to what this run needs:
+#   - the published image, pinned — no local build
+#   - a named volume for state instead of the upstream host bind mount: the
+#     container's fixed `node` uid never matches a CI runner's uid, and the
+#     driver reads state via `compose exec`, not from the host filesystem.
+#   - no cli sidecar service: one-shot config commands run as
+#     `compose run --entrypoint node gateway dist/index.js …` (the pattern
+#     openclaw's own docs use for headless onboarding), and live commands as
+#     `compose exec gateway node dist/index.js …`.
+services:
+  gateway:
+    image: ${OPENCLAW_IMAGE:-docker.io/openclaw/openclaw:2026.6.11}
+    # Loopback, not the upstream compose's `lan`: the gateway refuses to bind
+    # non-loopback without an auth token, and this run never reaches it from
+    # outside the container — all driving happens via `compose exec` in the
+    # same network namespace. No published ports for the same reason.
+    command:
+      [
+        "node",
+        "dist/index.js",
+        "gateway",
+        "--bind",
+        "loopback",
+        "--port",
+        "18789",
+      ]
+    environment:
+      - OPENCLAW_STATE_DIR=/home/node/.openclaw
+      - OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # OpenClaw's built-in anthropic catalog hardcodes each model's baseUrl
+      # (it wins over this env var), so the harness routes through the stand-in
+      # via `config set models.providers.anthropic.baseUrl` instead. This is
+      # kept for parity/passthrough; the standin service itself is added by the
+      # stacks/standin/ compose fragment when the stand-in is enabled.
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-}
+    volumes:
+      - state:/home/node/.openclaw
+    restart: unless-stopped
+
+volumes:
+  state:
