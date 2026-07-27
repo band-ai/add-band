@@ -20,8 +20,9 @@ USER root
 # Prefer the pinned PyPI release, fall back to the pinned git ref if that
 # install fails. BAND_HERMES_VERSION is appended to the name verbatim and so
 # carries its own operator (`==1.2.3` pins one release; a range floats within
-# it). It is empty in pins.env today because the distribution is not published
-# yet, which skips straight to the git ref.
+# it). It holds a pre-1.0 range in pins.env today, and `hermes-band` is not
+# published yet, so that range resolves to nothing and the build still falls
+# back to the git ref.
 #
 # Only `hermes-band` is ever requested from PyPI. The distribution was renamed
 # hermes-band-platform -> hermes-band because the old name on PyPI belongs to an
