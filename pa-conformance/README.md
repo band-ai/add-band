@@ -299,6 +299,7 @@ by the SDK's own settings):
 | `HERMES_IMAGE` | pinned tag | Hermes base image the Band plugin is baked into |
 | `BAND_SDK_PATH` | auto-clone | explicit band-sdk-python checkout (for hacking on both) |
 | `BAND_HERMES_REF` | `pins.env` pin | hermes-band-platform commit baked into the Hermes image |
+| `BAND_HERMES_VERSION` | `pins.env` pin (empty) | released `hermes-band` PyPI specifier to bake in instead (e.g. `==1.2.3`); falls back to the ref |
 
 ## CI
 
@@ -322,7 +323,7 @@ PRs to advance them. Components not tracked there are pinned where consumed:
 
 | What | Where | Value |
 | --- | --- | --- |
-| hermes-band-platform | `pins.env` (`BAND_HERMES_REF`) | commit SHA tracking `main` |
+| hermes-band plugin | `pins.env` (`BAND_HERMES_VERSION`, else `BAND_HERMES_REF`) | PyPI specifier when set — unset today, so a commit SHA tracking `main` |
 | NanoClaw base + payload | `pins.env` (`NANOCLAW_REF` / `NANOCLAW_PAYLOAD_REF`) | commit SHAs tracking `main` / `band/adapter` |
 | OpenClaw Band channel plugin | `pins.env` (`OPENCLAW_CHANNEL_VERSION`) | npm version |
 | OpenClaw image | `stacks/openclaw/compose.yaml` | `openclaw/openclaw:2026.6.11` |
