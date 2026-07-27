@@ -89,9 +89,9 @@ class PASettings(BaseSettings):
     #: (compose build arg). The value comes from pins.env.
     band_hermes_ref: str
 
-    #: Released PyPI version of that plugin (`hermes-band`), preferred over the
-    #: commit above when set. Empty (the pins.env default) installs from the
-    #: commit — the distribution is not on PyPI yet.
+    #: Released PyPI specifier for that plugin (`hermes-band`), preferred over
+    #: the commit above when set. Carries its own operator (`==1.2.3`). Empty
+    #: (the pins.env default) installs from the commit — it is not on PyPI yet.
     band_hermes_version: str = ""
 
     #: Host port the OneCLI dashboard/API is published on (compose default).

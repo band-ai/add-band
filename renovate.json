@@ -38,12 +38,13 @@
     },
     {
       "customType": "regex",
-      "description": "PyPI version pins in pa-conformance/pins.env. Only matches a non-empty value: an unset pin (BAND_HERMES_VERSION, until the distribution ships) stays unmanaged rather than being invented.",
+      "description": "PyPI specifier pins in pa-conformance/pins.env. Only matches a non-empty value: an unset pin (BAND_HERMES_VERSION, until the distribution ships) stays unmanaged rather than being invented. The optional quotes a range needs in this shell-sourced file are kept out of currentValue.",
       "managerFilePatterns": ["/^pa-conformance/pins\\.env$/"],
       "matchStrings": [
-        "# renovate: datasource=pypi depName=(?<depName>\\S+)\\n[A-Z_]+=(?<currentValue>\\S+)"
+        "# renovate: datasource=pypi depName=(?<depName>\\S+)\\n[A-Z_]+=\"?(?<currentValue>[^\"\\s]+)\"?"
       ],
-      "datasourceTemplate": "pypi"
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
     }
   ]
 }

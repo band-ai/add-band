@@ -5,11 +5,12 @@
 # uv project.
 #
 # Two pins select the plugin, both from pa-conformance/pins.env (single source
-# of truth) and neither with a default: BAND_HERMES_VERSION is a released PyPI
-# version and wins when set, BAND_HERMES_REF is the band-ai/hermes-band-platform
-# commit used otherwise and as the fallback. A moving default on either would be
-# irreproducible — and, as the only changing inputs to the RUN below, would let
-# Docker reuse a stale cached layer after the branch or the release moved.
+# of truth) and neither with a default: BAND_HERMES_VERSION is a PEP 440
+# specifier for the released PyPI distribution and wins when set,
+# BAND_HERMES_REF is the band-ai/hermes-band-platform commit used otherwise and
+# as the fallback. A moving default on either would be irreproducible — and, as
+# the only changing inputs to the RUN below, would let Docker reuse a stale
+# cached layer after the branch or the release moved.
 ARG HERMES_IMAGE
 FROM ${HERMES_IMAGE}
 
@@ -17,8 +18,10 @@ ARG BAND_HERMES_REF
 ARG BAND_HERMES_VERSION
 USER root
 # Prefer the pinned PyPI release, fall back to the pinned git ref if that
-# install fails. BAND_HERMES_VERSION is empty in pins.env today because the
-# distribution is not published yet, which skips straight to the git ref.
+# install fails. BAND_HERMES_VERSION is appended to the name verbatim and so
+# carries its own operator (`==1.2.3` pins one release; a range floats within
+# it). It is empty in pins.env today because the distribution is not published
+# yet, which skips straight to the git ref.
 #
 # Only `hermes-band` is ever requested from PyPI. The distribution was renamed
 # hermes-band-platform -> hermes-band because the old name on PyPI belongs to an
@@ -40,11 +43,11 @@ RUN set -eu; \
       || { echo "BAND_HERMES_REF build arg is required (see pa-conformance/pins.env)" >&2; exit 1; }; \
     py=/opt/hermes/.venv/bin/python; \
     if [ -n "${BAND_HERMES_VERSION:-}" ] \
-       && uv pip install --python "$py" "hermes-band==${BAND_HERMES_VERSION}"; then \
-      echo "band plugin: PyPI hermes-band==${BAND_HERMES_VERSION}"; \
+       && uv pip install --python "$py" "hermes-band${BAND_HERMES_VERSION}"; then \
+      echo "band plugin: PyPI hermes-band${BAND_HERMES_VERSION}"; \
     else \
       [ -z "${BAND_HERMES_VERSION:-}" ] \
-        || echo "band plugin: PyPI hermes-band==${BAND_HERMES_VERSION} unavailable, falling back to git" >&2; \
+        || echo "band plugin: PyPI hermes-band${BAND_HERMES_VERSION} unavailable, falling back to git" >&2; \
       uv pip install --python "$py" \
         "git+https://github.com/band-ai/hermes-band-platform.git@${BAND_HERMES_REF}"; \
       echo "band plugin: git ${BAND_HERMES_REF}"; \
