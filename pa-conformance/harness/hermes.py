@@ -96,8 +96,10 @@ class HermesHarness(Harness):
                 "PA_HERMES_HOME": str(self.home),
                 "PA_UID": str(os.getuid()),
                 "PA_GID": str(os.getgid()),
-                # The plugin commit baked into the image (pin from pins.env).
+                # The plugin baked into the image (pins from pins.env): a PyPI
+                # release when pinned, else this commit.
                 "BAND_HERMES_REF": pa_settings().band_hermes_ref,
+                "BAND_HERMES_VERSION": pa_settings().band_hermes_version,
                 **ctx.llm_env,
                 **self.standin_env(),
             },

@@ -35,6 +35,15 @@
         "# renovate: datasource=npm depName=(?<depName>\\S+)\\n[A-Z_]+=(?<currentValue>\\S+)"
       ],
       "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "PyPI version pins in pa-conformance/pins.env. Only matches a non-empty value: an unset pin (BAND_HERMES_VERSION, until the distribution ships) stays unmanaged rather than being invented.",
+      "managerFilePatterns": ["/^pa-conformance/pins\\.env$/"],
+      "matchStrings": [
+        "# renovate: datasource=pypi depName=(?<depName>\\S+)\\n[A-Z_]+=(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "pypi"
     }
   ]
 }

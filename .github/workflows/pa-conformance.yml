@@ -166,8 +166,12 @@ jobs:
           NANOCLAW_REF_INPUT: ${{ inputs.nanoclaw_branch }}
         run: |
           source pa-conformance/pins.env
+          # A dispatched plugin ref means that exact ref: blank the PyPI pin so
+          # a release can't quietly win over the ref the run asked for.
+          [ -z "$HERMES_PLUGIN_REF_INPUT" ] || BAND_HERMES_VERSION=
           {
             echo "BAND_HERMES_REF=${HERMES_PLUGIN_REF_INPUT:-$BAND_HERMES_REF}"
+            echo "BAND_HERMES_VERSION=$BAND_HERMES_VERSION"
             echo "HERMES_IMAGE_TAG=$HERMES_IMAGE_TAG"
             echo "NANOCLAW_REF=${NANOCLAW_REF_INPUT:-$NANOCLAW_REF}"
             echo "NANOCLAW_PAYLOAD_REF=$NANOCLAW_PAYLOAD_REF"

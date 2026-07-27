@@ -16,6 +16,8 @@ services:
         # parseable for teardown-only invocations — the Dockerfile guard fails
         # a build that reaches it without a value.
         BAND_HERMES_REF: ${BAND_HERMES_REF:-}
+        # Released PyPI version, preferred over the ref when non-empty.
+        BAND_HERMES_VERSION: ${BAND_HERMES_VERSION:-}
     command: ["gateway", "run"]
     environment:
       - HERMES_UID=${PA_UID:?host uid — files on the bind mount must stay host-owned}
