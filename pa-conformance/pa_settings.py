@@ -91,8 +91,9 @@ class PASettings(BaseSettings):
 
     #: Released PyPI specifier for that plugin (`hermes-band`), preferred over
     #: the commit above when set. Carries its own operator (`==1.2.3`, or the
-    #: pre-1.0 range pins.env holds today). Falls back to the commit while the
-    #: specifier resolves to nothing — `hermes-band` is not published yet.
+    #: pre-1.0 range pins.env holds today, which resolves — `hermes-band` is
+    #: published from 0.1.0 on). Falls back to the commit when it is empty or
+    #: the PyPI install fails.
     band_hermes_version: str = ""
 
     #: Host port the OneCLI dashboard/API is published on (compose default).

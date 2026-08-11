@@ -20,9 +20,9 @@ USER root
 # Prefer the pinned PyPI release, fall back to the pinned git ref if that
 # install fails. BAND_HERMES_VERSION is appended to the name verbatim and so
 # carries its own operator (`==1.2.3` pins one release; a range floats within
-# it). It holds a pre-1.0 range in pins.env today, and `hermes-band` is not
-# published yet, so that range resolves to nothing and the build still falls
-# back to the git ref.
+# it). It holds a pre-1.0 range in pins.env today and `hermes-band` is published
+# from 0.1.0 on, so that range resolves and PyPI is the path builds normally
+# take; the git ref is reached when the specifier is empty or its install fails.
 #
 # Only `hermes-band` is ever requested from PyPI. The distribution was renamed
 # hermes-band-platform -> hermes-band because the old name on PyPI belongs to an
@@ -34,8 +34,9 @@ USER root
 # direct reference pip and uv verify the built distribution's name against NAME,
 # and that name is not stable across the refs this build must accept. Naming
 # either side would pin the build to one side of the rename and fail on a
-# BAND_HERMES_REF from the other, including a manual run that overrides the pin
-# with an older ref.
+# BAND_HERMES_REF from the other — including a manual run that overrides the ref
+# via the `hermes_plugin_ref` dispatch input, which clears BAND_HERMES_VERSION
+# so this branch runs against a ref that may predate the rename.
 #
 # The entry-point check is what proves the real plugin landed, whichever source
 # won. An import check would not — the placeholder owns that import name too.
