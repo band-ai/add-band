@@ -22,8 +22,9 @@ bash is uniquely placed to do, then hands off to the agent:
 1. **Install** the `band` plugin (which ships the `add-band` skill) into the
    gateway's own Python from the configured Git ref.
 2. **Mint** a Band agent from your Band API key — read by the package's
-   temporary bundled `skills/add-band/scripts/register_agent.py` helper run by
-   the gateway Python, so the broad key never reaches the agent's LLM. The
+   temporary bundled `skills/add-band/scripts/register-agent.sh` helper, which
+   prints only the agent-scoped pair; the bootstrap persists it through the
+   gateway's env writer, so the broad key never reaches the agent's LLM. The
    agent-scoped `BAND_AGENT_ID` + `BAND_API_KEY` it returns **replace** your key
    in the gateway `.env` (the key retains the `BAND_API_KEY` name); the broad
    shell value is then dropped.
@@ -34,8 +35,8 @@ bash is uniquely placed to do, then hands off to the agent:
 
 > **Pre-created agent instead?** Make one at `app.band.ai/agents/new`, save
 > `BAND_AGENT_ID` + `BAND_API_KEY` to the gateway `.env`, and drop the
-> `register_agent.py` + `unset` lines (keep the Git-ref `uv pip install` and the
-> `hermes chat -s add-band` hand-off). See [Prereqs](#prereqs).
+> registration + `unset` lines (keep the Git-ref `uv pip install` and the
+> `hermes chat` hand-off). See [Prereqs](#prereqs).
 
 ## Source
 

@@ -84,25 +84,59 @@ if [ -z "${BAND_AGENT_NAME:-}" ]; then
 fi
 export BAND_AGENT_NAME
 
-# Mint the Band agent with the helper the installed plugin ships — resolved by
-# path under $HERMES_HOME, no Python package import, no SDK. The helper reads
-# the user key from the environment (never argv), saves only the agent-scoped
-# credentials through Hermes's env writer, and never prints the user key.
+# Mint the Band agent with the canonical `register-agent.sh` the installed plugin
+# ships — the shared, dependency-light helper the nanoclaw/openclaw bootstraps run
+# too — resolved by path under $HERMES_HOME, no Python package import, no SDK. It
+# reads the user key from the environment (never argv) and prints only the
+# agent-scoped pair on stdout, never the user key. The only Hermes-specific glue
+# stays here: skipping a re-mint on re-run, and persisting the pair to the gateway
+# .env through hermes_cli's env writer. Once band-sdk publishes
+# `band.cli.register_agent`, swap the helper call for the SDK CLI — it must keep the
+# helper's browser-like registration headers (User-Agent, Accept, Accept-Language)
+# or app.band.ai can Cloudflare-1010 sparse script fingerprints even with a valid key.
 skill_dir="$hermes_home/plugins/band/skills/add-band"
-[ -f "$skill_dir/scripts/register_agent.py" ] || { echo "add-band skill missing at $skill_dir (install failed?)" >&2; exit 1; }
-# Same gateway-interpreter resolution the installer uses (HERMES_PY overrides).
-if [ -z "${HERMES_PY:-}" ]; then
-  for py in python3 python; do
-    command -v "$py" >/dev/null || continue
-    if HERMES_PY="$("$py" "$skill_dir/scripts/gateway_python.py" --print)"; then
-      break
-    fi
-    HERMES_PY=""
-  done
-  [ -n "${HERMES_PY:-}" ] || { echo "could not resolve the gateway Python; set HERMES_PY and re-run" >&2; exit 1; }
+[ -f "$skill_dir/scripts/register-agent.sh" ] || { echo "add-band skill missing at $skill_dir (install failed?)" >&2; exit 1; }
+
+# Idempotent: if the gateway already has an agent id persisted, don't mint another.
+band_env="$(hermes config env-path 2>/dev/null || true)"
+if [ -n "$band_env" ] && [ -f "$band_env" ] && grep -q '^BAND_AGENT_ID=' "$band_env"; then
+  echo "Band agent already registered; skipping registration."
+else
+  # Keep registration non-interactive: BAND_AGENT_NAME is already set above; pin a
+  # description default too so the helper doesn't drop into its /dev/tty prompt.
+  : "${BAND_AGENT_DESCRIPTION:=Hermes agent on Band}"
+  export BAND_AGENT_DESCRIPTION
+  # The helper reads BAND_API_KEY from the env (never argv) and prints only the
+  # agent-scoped BAND_AGENT_ID + BAND_AGENT_API_KEY — never the user key.
+  creds="$(bash "$skill_dir/scripts/register-agent.sh")" \
+    || { echo "Band registration failed (see the error above)." >&2; exit 1; }
+  eval "$creds"
+  [ -n "${BAND_AGENT_ID:-}" ] && [ -n "${BAND_AGENT_API_KEY:-}" ] \
+    || { echo "registration returned no agent credentials" >&2; exit 1; }
+  # Persisting runs hermes_cli, which lives in the gateway's interpreter — the same
+  # resolution the installer uses (HERMES_PY overrides).
+  if [ -z "${HERMES_PY:-}" ]; then
+    for py in python3 python; do
+      command -v "$py" >/dev/null || continue
+      if HERMES_PY="$("$py" "$skill_dir/scripts/gateway_python.py" --print)"; then
+        break
+      fi
+      HERMES_PY=""
+    done
+    [ -n "${HERMES_PY:-}" ] || { echo "could not resolve the gateway Python; set HERMES_PY and re-run" >&2; exit 1; }
+  fi
+  # Persist agent-scoped creds via Hermes's env writer (managed-scope/denylist/ASCII
+  # guards live there). The agent key is stored under BAND_API_KEY — the name the
+  # band plugin reads at runtime — and passed via the env, never argv.
+  BAND_AGENT_ID="$BAND_AGENT_ID" BAND_AGENT_API_KEY="$BAND_AGENT_API_KEY" "$HERMES_PY" <<'PY'
+import os
+from hermes_cli.config import save_env_value
+save_env_value("BAND_AGENT_ID", os.environ["BAND_AGENT_ID"])
+save_env_value("BAND_API_KEY", os.environ["BAND_AGENT_API_KEY"])
+PY
 fi
-"$HERMES_PY" "$skill_dir/scripts/register_agent.py"
-unset BAND_API_KEY
+# The user key (and the agent key we just persisted) must not linger into handoff.
+unset BAND_API_KEY BAND_AGENT_API_KEY
 
 # Hand off to the agent: the add-band skill restarts the gateway, wires Band in
 # as a comms channel, bootstraps the hub, and sends you the agent's first
