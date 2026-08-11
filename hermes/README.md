@@ -19,8 +19,13 @@ Run on the host where your Hermes gateway runs. The Band web app gives you a
 script prompts. The script ([`bootstrap.sh`](bootstrap.sh)) does only the two things
 bash is uniquely placed to do, then hands off to the agent:
 
-1. **Install** the `band` plugin (which ships the `add-band` skill) into the
-   gateway's own Python from the configured Git ref.
+1. **Install** the `band` plugin (which ships the `add-band` skill) as a Hermes
+   **directory plugin** from the configured Git ref: the repo's `install.sh`
+   stages the plugin into `$HERMES_HOME/plugins/band` and resolves `band-sdk`
+   into `$HERMES_HOME/band-libs` with the gateway's own interpreter, so the
+   wheels match the Python that loads them. Nothing is written to the gateway's
+   venv — that is what lets a read-only or root-owned venv (common on hosted
+   runtimes) work without sudo. Re-running refreshes the install in place.
 2. **Mint** a Band agent from your Band API key — read by the package's
    temporary bundled `skills/add-band/scripts/register-agent.sh` helper, which
    prints only the agent-scoped pair; the bootstrap persists it through the
@@ -28,14 +33,14 @@ bash is uniquely placed to do, then hands off to the agent:
    agent-scoped `BAND_AGENT_ID` + `BAND_API_KEY` it returns **replace** your key
    in the gateway `.env` (the key retains the `BAND_API_KEY` name); the broad
    shell value is then dropped.
-3. **Hand off** to `hermes chat -s add-band`. The skill runs the steps that need
+3. **Hand off** to `hermes chat -s band:add-band`. The skill runs the steps that need
    agent smarts rather than bash: it completes plugin setup, wires Band in as a
    communication channel with context isolation, bootstraps the **Hermes Hub**,
    and sends you the agent's first message.
 
 > **Pre-created agent instead?** Make one at `app.band.ai/agents/new`, save
 > `BAND_AGENT_ID` + `BAND_API_KEY` to the gateway `.env`, and drop the
-> registration + `unset` lines (keep the Git-ref `uv pip install` and the
+> registration + `unset` lines (keep the clone + `install.sh` and the
 > `hermes chat` hand-off). See [Prereqs](#prereqs).
 
 ## Source
@@ -43,17 +48,21 @@ bash is uniquely placed to do, then hands off to the agent:
 - **Repo:** [`band-ai/hermes-band-platform`](https://github.com/band-ai/hermes-band-platform)
   — the bootstrap installs from `BAND_HERMES_REF` (`main` by default). Set a
   tag or commit for a reproducible install.
-- **Skill:** `hermes_band_platform/skills/add-band/SKILL.md` (also available as
-  `hermes /add-band` once the plugin is installed).
+- **Skill:** `hermes_band_platform/skills/add-band/SKILL.md` in the repo, installed
+  to `$HERMES_HOME/plugins/band/skills/add-band/`. Run it with
+  `hermes chat -s band:add-band` — the plugin namespaces its skills, so the bare
+  `add-band` does not resolve.
 - **Fresh box / non-Hermes agent:** the one-shot install prompt at
   [`docs/INSTALL-PROMPT.md`](https://github.com/band-ai/hermes-band-platform/blob/main/docs/INSTALL-PROMPT.md).
 
 ## Local testing
 
 To test plugin edits live, copy `bootstrap.sh` to a **git-ignored**
-`bootstrap.local.sh` and swap its install line for an editable install from your
-local clone. Run it the `curl … | bash` way (from the `add-band` repo root, with
-`HERMES_HOME` exported to isolate the test):
+`bootstrap.local.sh` and swap its clone + `install.sh` for your local checkout's
+own installer (`bash /path/to/hermes-band-platform/install.sh`). A directory
+plugin is a *copy*, not an editable install, so re-run it after every edit. Run
+it the `curl … | bash` way (from the `add-band` repo root, with `HERMES_HOME`
+exported to isolate the test):
 
 ```bash
 curl -fsSL "file://$PWD/hermes/bootstrap.local.sh" | bash
@@ -82,10 +91,15 @@ Full end-to-end guide: [`TESTING.md`](TESTING.md).
 Full configuration (hub pinning, allowlists, failover) is documented in the
 [plugin README](https://github.com/band-ai/hermes-band-platform#environment-variables).
 
-If you choose Hermes's directory-plugin path instead of the package install path,
-remember that directory plugins do not install Python dependencies. The setup
-flow must prompt to install `band-sdk>=1.0.0,<2.0.0` into the gateway Python and
-show a clear error if `import band` still fails.
+Directory plugins do not install Python dependencies, so `install.sh` resolves
+`band-sdk>=1.0.0,<2.0.0` into `$HERMES_HOME/band-libs` with the gateway
+interpreter and the plugin prepends that dir to `sys.path` as it loads.
+`BAND_SDK_SPEC` overrides the pin; `HERMES_PY` overrides interpreter detection.
+
+A pip (entry-point) install of the plugin **overrides** a directory install of the
+same name in Hermes's loader, so the old code would keep running while the install
+reports success. `install.sh` refuses to continue while one is present in the
+gateway venv — remove it, or re-run with `BAND_UNINSTALL_PIP=1`.
 
 ## Verify
 
