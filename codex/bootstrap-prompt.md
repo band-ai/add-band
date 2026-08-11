@@ -12,9 +12,10 @@ This is the Codex variant. Sibling files: `claude/bootstrap-prompt.md` (Claude C
 These instructions fetch two kinds of external resources, both always from `main`:
 
 1. **`scripts/register-agent.sh`** from `band-ai/add-band` (the repo where this file lives) — the helper used to provision the agents in Step 5.
-2. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6. `main` matches what `band-sdk` on PyPI is built from, so the scaffolded code and the installed library stay aligned.
+2. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6.
 
-These instructions may themselves be loaded from any branch (a feature branch during testing, `main` after merge) — no branch-sniffing is needed because everything they reference is pinned to `main`.
+These instructions may themselves be loaded from any branch. Their external
+references use each repository's `main` branch.
 
 ### Example file map (from `band-sdk-python/main`)
 
@@ -24,6 +25,7 @@ These instructions may themselves be loaded from any branch (a feature branch du
 | `crewai` | `examples/crewai/05_tom_agent.py` | `examples/crewai/06_jerry_agent.py` |
 | `anthropic` | `examples/anthropic/03_tom_agent.py` | `examples/anthropic/04_jerry_agent.py` |
 | `claude_sdk` | `examples/claude_sdk/03_tom_agent.py` | `examples/claude_sdk/04_jerry_agent.py` |
+| `codex` | `examples/codex/02_tom_agent.py` | `examples/codex/03_jerry_agent.py` |
 | `parlant` | `examples/parlant/04_tom_agent.py` | `examples/parlant/05_jerry_agent.py` |
 | `pydantic_ai` | `examples/pydantic_ai/03_tom_agent.py` | `examples/pydantic_ai/04_jerry_agent.py` |
 
@@ -59,7 +61,8 @@ Two stages for clarity. The second is only asked when the first selects the "fra
 > 1) **Framework + your LLM key** — Run inside an agent framework (langgraph / crewai / pydantic_ai). You provide an OpenAI or Anthropic API key.
 > 2) **Direct Anthropic SDK** — Plain Anthropic SDK loop. Needs an Anthropic API key. *(sets `adapter = anthropic`)*
 > 3) **Claude Agent SDK** — Uses the Claude Code subprocess. **No external LLM key needed** — requires Node.js 20+ and `npm install -g @anthropic-ai/claude-code`. *(sets `adapter = claude_sdk`)*
-> 4) **Parlant** — Conversation-modeling framework. Needs an OpenAI API key. *(sets `adapter = parlant`)*
+> 4) **OpenAI Codex** — Uses the Codex CLI. **No external LLM key needed** — authenticates via your Codex subscription (SSO). Requires Node.js 18+ and `npm install -g @openai/codex`. *(sets `adapter = codex`)*
+> 5) **Parlant** — Conversation-modeling framework. Needs an OpenAI API key. *(sets `adapter = parlant`)*
 
 **Step 2b — Ask the framework** *(only if Step 2a was option 1)*:
 
@@ -74,6 +77,7 @@ Two stages for clarity. The second is only asked when the first selects the "fra
 |---|---|---|
 | `anthropic` | Skip — Anthropic only | `ANTHROPIC_API_KEY` |
 | `claude_sdk` | Skip — no external LLM | none |
+| `codex` | Skip — no external LLM (Codex subscription/SSO) | none |
 | `parlant` | Skip — OpenAI only (default NLP service) | `OPENAI_API_KEY` |
 | `crewai`, `langgraph`, `pydantic_ai` | Ask: OpenAI or Anthropic (numbered list) | matching key |
 
@@ -170,14 +174,14 @@ Fetch these three files from `band-ai/band-sdk-python` (always `main`) using `cu
    import logging
    logging.basicConfig(level=logging.INFO)
    ```
-   (Keep the existing `logger = logging.getLogger(__name__)` line.)
+   (Keep the existing `logger = logging.getLogger(__name__)` line.) If `import logging` is already present in the file (as it is in the `codex` adapter examples), omit the duplicate — only insert `logging.basicConfig(level=logging.INFO)` where `setup_logging()` was.
 
 5. **Replace the module docstring.** Replace the entire top-of-file `"""..."""` block (the one immediately after `from __future__ import annotations`, if present, or otherwise the first triple-quoted string in the file) with a single-line docstring:
 
    - Tom file: `"""Tom the cat agent (<ADAPTER>)."""`
    - Jerry file: `"""Jerry the mouse agent (<ADAPTER>)."""`
 
-   Where `<ADAPTER>` is the human-readable adapter name (LangGraph, CrewAI, Anthropic, Claude SDK, Parlant, Pydantic AI).
+   Where `<ADAPTER>` is the human-readable adapter name (LangGraph, CrewAI, Anthropic, Claude SDK, Codex, Parlant, Pydantic AI).
 
 6. **Swap the LLM if the user picked something other than the example default.** Only modify if the user's choice differs.
 
@@ -186,7 +190,7 @@ Fetch these three files from `band-ai/band-sdk-python` (always `main`) using `cu
    | `langgraph` | `from langchain_openai import ChatOpenAI` + `ChatOpenAI(model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"))` | replace import with `from langchain_anthropic import ChatAnthropic`, replace constructor with `ChatAnthropic(model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"))` | already default |
    | `crewai` | `model="gpt-5.4-mini"` | `model="anthropic/claude-sonnet-4-5-20250929"` (litellm prefix) | already default |
    | `pydantic_ai` | `model="openai:gpt-5.4-mini"` | `model="anthropic:claude-sonnet-4-5-20250929"` | already default |
-   | `anthropic`, `claude_sdk`, `parlant` | n/a — no swap path | — | — |
+   | `anthropic`, `claude_sdk`, `codex`, `parlant` | n/a — no swap path | — | — |
 
 Write each transformed file to `<out>/tom_agent.py` and `<out>/jerry_agent.py`.
 
@@ -210,6 +214,7 @@ jerry_agent:
 - OpenAI → `OPENAI_API_KEY=`
 - Anthropic (incl. the `anthropic` adapter) → `ANTHROPIC_API_KEY=`
 - `claude_sdk` → omit entirely
+- `codex` → omit entirely (authenticates via Codex subscription/SSO, not an API key)
 - `parlant` → `OPENAI_API_KEY=`
 
 ```
@@ -218,7 +223,7 @@ BAND_WS_URL=<WS_URL>
 <LLM_KEY_LINE>
 ```
 
-**`<out>/pyproject.toml`** — `<EXTRA>` is the adapter name with two hyphen-form exceptions: `claude_sdk` → `claude-sdk`, `pydantic_ai` → `pydantic-ai`. The other adapters (`langgraph`, `crewai`, `anthropic`, `parlant`) use their name verbatim.
+**`<out>/pyproject.toml`** — `<EXTRA>` is the adapter name with two hyphen-form exceptions: `claude_sdk` → `claude-sdk`, `pydantic_ai` → `pydantic-ai`. The other adapters (`langgraph`, `crewai`, `anthropic`, `codex`, `parlant`) use their name verbatim.
 
 The `requires-python` upper bound matters: without it `uv` will pick the newest Python on the machine (3.14+ exists at time of writing), and pydantic-core's PyO3 currently caps at 3.13 — `uv sync` will fail to build. Cap at `<3.14`.
 
@@ -257,7 +262,7 @@ __pycache__/
 
 ### Step 8 — Ask how to handle the LLM API key
 
-Skip for `claude_sdk`.
+Skip for `claude_sdk` and `codex`.
 
 Ask the user (numbered list):
 

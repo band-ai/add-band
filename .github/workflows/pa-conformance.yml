@@ -1,0 +1,258 @@
+name: PA conformance
+
+# Live end-to-end bring-up of the three PA harnesses (NanoClaw, OpenClaw,
+# Hermes) against hosted Band: each comes up headlessly, answers a direct
+# @mention, and they complete bounded inter-agent exchanges. Provisions real
+# Band agents and calls real model providers, so it runs on demand and for
+# suite or component-pin changes in pull requests opened from this repository;
+# PR pushes that leave those paths untouched skip the live job. Renovate
+# groups all pins.env bumps into a single weekly PR (renovate.json), so that
+# adds about one live run a week. Fork pull requests receive a skipped live
+# job because repository secrets are unavailable to them.
+#
+# One job runs all selected compose stacks side by side. The PAs talk through
+# hosted Band, so the job only needs them connected during the same test window.
+#
+# The suite is a self-contained uv project (pa-conformance/pyproject.toml):
+# band-sdk installs from git, and the suite auto-clones the SDK's baseline
+# toolkit tree at the exact installed commit. Git access uses E2E_GITHUB_TOKEN
+# because the SDK repo carries a private SSH-URL submodule.
+#
+# Every component version is overridable at dispatch (empty input = the
+# repo's pinned default).
+#
+# Secrets carry the E2E_ prefix (scoped to live runs) and map 1:1 onto the
+# bare names the toolkit reads — the same convention as band-sdk-python.
+
+on:
+  # Suite changes in same-repository pull requests get a full live run
+  # (uv.lock pins band-sdk and with it the driver toolkit ref). Fork PRs are
+  # skipped because this suite requires repository secrets. GitHub matches
+  # these paths against the whole PR diff, so a matching PR re-triggers on
+  # every push; the suite-gate job skips pushes that left these paths
+  # untouched.
+  pull_request:
+    paths:
+      - "pa-conformance/**"
+      - ".github/workflows/pa-conformance.yml"
+      # F4 onboarding uses the OpenClaw catalog integration
+      # (tests/test_onboarding.py), so changes there must re-run conformance.
+      # Hermes/NanoClaw bootstraps aren't executed (their F4 rows are skipped),
+      # so they're deliberately left out until those skips are lifted.
+      - "openclaw/**"
+  workflow_dispatch:
+    inputs:
+      harnesses:
+        description: "Harnesses to run"
+        type: choice
+        default: "all"
+        options:
+          - all
+          - nanoclaw
+          - openclaw
+          - hermes
+          - nanoclaw,openclaw
+          - nanoclaw,hermes
+          - openclaw,hermes
+      openclaw_version:
+        description: "OpenClaw version — a docker.io/openclaw/openclaw image tag, e.g. 2026.6.11 (empty = the suite's pin)"
+        type: string
+        default: ""
+      hermes_version:
+        description: "Hermes version — a docker.io/nousresearch/hermes-agent image tag, e.g. v2026.7.7.2 (empty = the suite's pin)"
+        type: string
+        default: ""
+      hermes_plugin_ref:
+        description: "band-ai/hermes-band-platform git ref baked into the Hermes image (empty = the pins.env pin)"
+        type: string
+        default: ""
+      nanoclaw_branch:
+        description: "NanoClaw git ref to build (empty = the pins.env pin)"
+        type: string
+        default: ""
+      band_sdk_ref:
+        description: "band-ai/band-sdk-python git ref for the driver toolkit (empty = the uv.lock pin)"
+        type: string
+        default: ""
+
+# The suite only reads the repo (checkout + git diff) and reaches Band/model
+# providers through E2E_* secrets, so the workflow token needs nothing beyond
+# repository read.
+permissions:
+  contents: read
+
+jobs:
+  # PR pushes re-trigger the workflow whenever the PR as a whole touches the
+  # suite, so this job checks what the push itself changed and skips the live
+  # suite when the suite paths are untouched. Every other event (dispatch, PR
+  # opened/reopened, force-push with an unreachable before-commit) runs live.
+  suite-gate:
+    name: skip pushes that leave the suite untouched
+    # Repository secrets are unavailable to fork PRs. Keep this workflow on
+    # pull_request so untrusted code never runs with secrets, and only run the
+    # live suite for PRs opened from this repository.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    outputs:
+      live: ${{ steps.decide.outputs.live }}
+    steps:
+      - name: Checkout add-band
+        if: ${{ github.event.action == 'synchronize' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Diff the pushed commits against the suite paths
+        id: decide
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          live=true
+          if [[ "${{ github.event.action }}" == "synchronize" ]] \
+              && git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
+              && git diff --quiet "$BEFORE" "$AFTER" -- pa-conformance openclaw .github/workflows/pa-conformance.yml; then
+            live=false
+          fi
+          echo "live=$live" >> "$GITHUB_OUTPUT"
+
+  conformance:
+    name: bring up the PA harnesses and test them on Band
+    needs: suite-gate
+    if: ${{ needs.suite-gate.outputs.live == 'true' }}
+    # One live run per harness subset; runs with the same subset share one
+    # Band owner account and would race. A newer live run supersedes the
+    # older. Concurrency sits on this job rather than the workflow so a
+    # gate-skipped run never cancels a live one. pull_request runs have no
+    # inputs, so they land in the 'all' group alongside full-suite dispatches.
+    concurrency:
+      group: pa-conformance-${{ inputs.harnesses || 'all' }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # Toolchain versions, one place to audit and bump.
+      PYTHON_VERSION: "3.12"
+      NODE_VERSION: "22"
+      PNPM_VERSION: "10.33.0"
+
+      E2E_TESTS_ENABLED: "true"
+      # Failure deadline per waited turn (never a success signal). NanoClaw's
+      # host cycles agent containers at ~60s, so on a cold runner a first-contact
+      # greeting turn plus the actual reply cannot fit the 60s settings default;
+      # 120s matches band-sdk-python's e2e turn budget.
+      E2E_TIMEOUT: "120"
+      BAND_BASE_URL: ${{ secrets.E2E_BAND_REST_URL }}
+      BAND_WS_URL: ${{ secrets.E2E_BAND_WS_URL }}
+      BAND_API_KEY_USER: ${{ secrets.E2E_BAND_API_KEY_USER }}
+      ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
+
+      # '' means all to the suite.
+      PA_HARNESSES: ${{ inputs.harnesses != 'all' && inputs.harnesses || '' }}
+      NANOCLAW_SRC: ${{ github.workspace }}/.nanoclaw-band
+      OPENCLAW_IMAGE: ${{ inputs.openclaw_version && format('docker.io/openclaw/openclaw:{0}', inputs.openclaw_version) || '' }}
+      HERMES_IMAGE: ${{ inputs.hermes_version && format('docker.io/nousresearch/hermes-agent:{0}', inputs.hermes_version) || '' }}
+
+    steps:
+      - name: Checkout add-band
+        uses: actions/checkout@v4
+
+      # pins.env is the single source of truth for upstream component pins;
+      # a dispatch input overrides its pin for that run. Resolved into
+      # GITHUB_ENV (not job-level env) so exactly one layer defines each var.
+      - name: Resolve component pins (dispatch inputs override)
+        env:
+          HERMES_PLUGIN_REF_INPUT: ${{ inputs.hermes_plugin_ref }}
+          NANOCLAW_REF_INPUT: ${{ inputs.nanoclaw_branch }}
+        run: |
+          source pa-conformance/pins.env
+          # A dispatched plugin ref means that exact ref: blank the PyPI pin so
+          # a release can't quietly win over the ref the run asked for.
+          [ -z "$HERMES_PLUGIN_REF_INPUT" ] || BAND_HERMES_VERSION=
+          {
+            echo "BAND_HERMES_REF=${HERMES_PLUGIN_REF_INPUT:-$BAND_HERMES_REF}"
+            echo "BAND_HERMES_VERSION=$BAND_HERMES_VERSION"
+            echo "HERMES_IMAGE_TAG=$HERMES_IMAGE_TAG"
+            echo "NANOCLAW_REF=${NANOCLAW_REF_INPUT:-$NANOCLAW_REF}"
+            echo "NANOCLAW_PAYLOAD_REF=$NANOCLAW_PAYLOAD_REF"
+          } >> "$GITHUB_ENV"
+
+      - name: Install uv + Python
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pa-conformance/uv.lock"
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # band-sdk-python carries a private submodule referenced by SSH URL;
+      # rewrite band-ai remotes to token-authenticated HTTPS so uv's git
+      # checkout (and the runtime toolkit clone) can fetch it.
+      - name: Grant git access to band-ai repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.E2E_GITHUB_TOKEN }}@github.com/band-ai/".insteadOf "git@github.com:band-ai/"
+          git config --global --add url."https://x-access-token:${{ secrets.E2E_GITHUB_TOKEN }}@github.com/band-ai/".insteadOf "https://github.com/band-ai/"
+
+      - name: Point band-sdk at the requested ref
+        if: ${{ inputs.band_sdk_ref != '' }}
+        working-directory: pa-conformance
+        env:
+          BAND_SDK_REF: ${{ inputs.band_sdk_ref }}
+        run: uv add "band-sdk @ git+https://github.com/band-ai/band-sdk-python@$BAND_SDK_REF"
+
+      - name: Install the suite environment
+        working-directory: pa-conformance
+        run: uv sync
+
+      # NanoClaw has no published image: materialize the branch + the
+      # band/adapter payload + pinned SDK deps, then build host + agent images.
+      - name: Set up node (NanoClaw prepare)
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'nanoclaw') }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable pnpm
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'nanoclaw') }}
+        run: corepack enable && corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+      - name: Install bun
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'nanoclaw') }}
+        uses: oven-sh/setup-bun@v2
+      - name: Prepare NanoClaw (band payload + images)
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'nanoclaw') }}
+        run: bash pa-conformance/stacks/nanoclaw/prepare.sh
+
+      - name: Build Hermes image (Band plugin baked in)
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'hermes') }}
+        # The PA_* vars are runtime-only, but compose validates the whole file
+        # at parse time — satisfy the `:?` guards with placeholder values.
+        run: >-
+          PA_HERMES_HOME=/tmp PA_UID="$(id -u)" PA_GID="$(id -g)"
+          docker compose -f pa-conformance/stacks/hermes/compose.yaml build gateway
+
+      - name: Pull OpenClaw image
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'openclaw') }}
+        run: docker compose -f pa-conformance/stacks/openclaw/compose.yaml pull gateway
+
+      - name: Run strict integration conformance
+        working-directory: pa-conformance
+        env:
+          PA_TEST_LANE: integration
+          PA_MODEL_MODE: strict
+        run: uv run pytest tests -v --tb=short
+
+      - name: Run model E2E conformance
+        working-directory: pa-conformance
+        env:
+          PA_TEST_LANE: e2e
+          PA_MODEL_MODE: passthrough
+        run: uv run pytest tests -v --tb=short
+
+      - name: Collect docker state for diagnosis
+        if: failure()
+        run: docker ps -a && docker compose ls -a
+
+      # Pytest tears down stacks and Band resources on normal failure. This
+      # covers local stacks after a killed process; the next run's guarded
+      # orphan sweep covers leaked Band resources.
+      - name: Tear down any surviving stacks
+        if: always()
+        run: bash pa-conformance/stacks/down-all.sh

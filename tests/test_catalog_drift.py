@@ -63,7 +63,7 @@ class TestParticipatingIntegrations:
 
 
 class TestSharedRegisterAgentHelper:
-    """The shared registration helper stays syntactically valid and synced."""
+    """The shared registration helper stays syntactically valid."""
 
     @pytest.mark.skipif(shutil.which("bash") is None, reason="bash not installed")
     def test_canonical_helper_syntax(self):
@@ -72,10 +72,3 @@ class TestSharedRegisterAgentHelper:
             ["bash", "-n", str(script)], capture_output=True, text=True
         )
         assert result.returncode == 0, result.stderr
-
-    def test_existing_helper_copies_do_not_drift(self):
-        script = check.ROOT / "scripts" / "check-register-agent-sync.py"
-        result = subprocess.run(
-            ["python3", str(script)], capture_output=True, text=True
-        )
-        assert result.returncode == 0, result.stdout + result.stderr

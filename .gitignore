@@ -3,8 +3,24 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Claude Code local state & worktrees
-.claude/
+# Claude Code local state & worktrees — only the shipped pa-conformance skill is tracked
+**/.claude/*
+!**/.claude/skills/
+**/.claude/skills/*
+!**/.claude/skills/pa-conformance/
 
 # Local-only bootstrap variants (e.g. editable installs for live testing) — never shipped
 */bootstrap.local.sh
+
+# Local env files (live credentials for manual/dev testing) — never shipped
+.env
+.env.*
+!.env.*.example
+
+# Local planning scratchpad
+todo.md
+
+# pa-conformance local state: its uv venv and the auto-cloned SDK toolkit tree
+pa-conformance/.venv/
+pa-conformance/.deps/
+.idea/

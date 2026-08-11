@@ -1,0 +1,35 @@
+name: Renovate
+
+# The Mend-hosted Renovate app is not installed on this org, so Renovate runs
+# self-hosted here on a schedule (and on demand). It reads renovate.json at
+# the repo root — pin bumps for pa-conformance/pins.env plus the standard
+# managers (Dockerfile, compose, actions, uv).
+on:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays 05:00 UTC — pin bumps arrive as PRs
+  # On demand: Actions → Renovate → "Run workflow".
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@v43
+        with:
+          # Needs contents:write + pull-requests:write + issues:write on this
+          # repo (and read on the band-ai repos named in pins.env).
+          token: ${{ secrets.E2E_GITHUB_TOKEN }}
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # renovate.json is committed; never open an onboarding PR.
+          RENOVATE_ONBOARDING: "false"
+          LOG_LEVEL: info
