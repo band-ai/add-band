@@ -35,11 +35,13 @@ from band.client.rest import (
 )
 from band_rest import ParticipantRequest
 from band_rest.human_api_chats import CreateMyChatRoomRequestChat
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 # Picks up BAND_REST_URL from the scaffold's .env; real environment variables
-# (the key, the agent id/name) are never overridden.
-load_dotenv()
+# (the key, the agent id/name) are never overridden. Resolved from the CWD —
+# this script runs from a fetched tempfile, so the default file-relative
+# lookup would never find the scaffold's .env.
+load_dotenv(find_dotenv(usecwd=True))
 
 # Windows defaults stdout/stderr to a legacy codepage (cp1252) that can't
 # print an agent reply containing emoji; the reply content is arbitrary text.
