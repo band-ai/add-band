@@ -124,11 +124,22 @@ jobs:
         run: |
           cd ci-out
           uv sync
-          nohup uv run python tom_agent.py > tom.log 2>&1 &
-          nohup uv run python jerry_agent.py > jerry.log 2>&1 &
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            # Git Bash's nohup does not keep a child process alive reliably on
+            # the Windows runner. Launch uv.exe through PowerShell instead;
+            # this is only CI plumbing — the interactive flow uses Claude
+            # Code's run_in_background mechanism.
+            powershell.exe -NoProfile -NonInteractive -Command \
+              "Start-Process -FilePath (Get-Command uv).Source -ArgumentList @('run', 'python', 'tom_agent.py') -RedirectStandardOutput 'tom.stdout.log' -RedirectStandardError 'tom.stderr.log'"
+            powershell.exe -NoProfile -NonInteractive -Command \
+              "Start-Process -FilePath (Get-Command uv).Source -ArgumentList @('run', 'python', 'jerry_agent.py') -RedirectStandardOutput 'jerry.stdout.log' -RedirectStandardError 'jerry.stderr.log'"
+          else
+            nohup uv run python tom_agent.py > tom.log 2>&1 &
+            nohup uv run python jerry_agent.py > jerry.log 2>&1 &
+          fi
           sleep 8
-          grep -q "Agent started: Tom" tom.log
-          grep -q "Agent started: Jerry" jerry.log
+          grep -q "Agent started: Tom" tom*.log
+          grep -q "Agent started: Jerry" jerry*.log
 
       # The pass/fail gate is deliberately NOT the model's own report of
       # success: a connected-but-mute agent passes the startup grep above and
