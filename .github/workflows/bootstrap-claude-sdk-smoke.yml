@@ -1,0 +1,106 @@
+# Live smoke for the Tom & Jerry bootstrap, claude_sdk lane (INT-1211).
+#
+# Drives the actual `claude` CLI headlessly through claude/bootstrap-prompt.md
+# Steps 1-9 against a test Band account, then independently asserts that Tom
+# answers a real message — the exact check whose absence shipped dead agents
+# to a prospect. ubuntu-only MVP; the windows/macos matrix is a fast-follow
+# once this lane is proven.
+name: bootstrap-claude-sdk-smoke
+
+on:
+  pull_request:
+    # Same-repo PRs only (fork PRs can't read the secrets; see the job `if`).
+    paths:
+      - claude/bootstrap-prompt.md
+      - scripts/register-agent.sh
+      - scripts/verify_agent_reply.py
+      - .github/workflows/bootstrap-claude-sdk-smoke.yml
+  workflow_dispatch:
+
+# One run at a time: the platform enforces unique agent names per owner, so
+# concurrent runs on the shared test account would collide on Tom/Jerry.
+concurrency:
+  group: bootstrap-claude-sdk-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    env:
+      BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+      BAND_REST_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
+      BAND_WS_URL: ${{ secrets.E2E_BAND_WS_URL || 'wss://app.band.ai/api/v1/socket/websocket' }}
+      # Dogfoods the credential this incident was about: the scaffolded agents'
+      # claude subprocess resolves this same variable.
+      ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Reap leftover Tom/Jerry agents
+        run: .github/workflows/scripts/reap-tom-jerry.sh
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run the bootstrap headlessly (Steps 1-9)
+        run: |
+          claude -p "$(cat <<'PROMPT'
+          Read claude/bootstrap-prompt.md in this checkout and execute its
+          Steps 1 through 9. This is a headless CI run — never call
+          AskUserQuestion; every answer is pre-supplied here:
+
+          - Step 1: the Band user API key is in the BAND_USER_API_KEY
+            environment variable (never print or persist it). BAND_REST_URL
+            and BAND_WS_URL are in the environment too.
+          - Step 2: adapter = claude_sdk.
+          - Step 3: auth answer = "Use my ANTHROPIC_API_KEY" (it is already
+            exported in this job's environment).
+          - Step 4: output directory = ./ci-out
+          - Step 5 and Step 9: use the local scripts from this checkout
+            (scripts/register-agent.sh, scripts/verify_agent_reply.py)
+            instead of fetching from main — this run must test THIS branch's
+            versions.
+          - Step 8: leave the .env line as "ANTHROPIC_API_KEY=" (blank); the
+            process environment supplies the real value.
+          - Step 9: answer = run them for me. Launch each agent detached via
+            nohup with output to tom.log / jerry.log inside ci-out (the
+            cursor-variant command shape) so the processes outlive your run,
+            then run the Step 9 verification exactly as written.
+
+          Stop and exit non-zero the moment any step fails. Skip Step 10.
+          PROMPT
+          )" --permission-mode dontAsk \
+             --allowedTools "Bash,Read,Edit,Write,Glob,Grep,WebFetch" \
+             --output-format text
+
+      # The pass/fail gate is deliberately NOT Claude's own report of success:
+      # re-run the reply check from the workflow itself.
+      - name: Independently verify Tom replies
+        run: |
+          TOM_ID=$(awk '/^tom_agent:/{f=1;next} f&&/agent_id:/{gsub(/"/,"",$2);print $2;exit}' ci-out/agent_config.yaml)
+          test -n "$TOM_ID"
+          cd ci-out && VERIFY_AGENT_ID="$TOM_ID" VERIFY_AGENT_NAME="Tom" \
+            uv run python ../scripts/verify_agent_reply.py
+
+      - name: Upload agent logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-logs
+          path: ci-out/*.log
+          if-no-files-found: ignore
+
+      - name: Teardown
+        if: always()
+        run: |
+          pkill -f 'ci-out.*tom_agent.py' || true
+          pkill -f 'ci-out.*jerry_agent.py' || true
+          .github/workflows/scripts/reap-tom-jerry.sh
