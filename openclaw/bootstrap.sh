@@ -98,9 +98,10 @@ fi
 name=${name:-$name_default}
 desc=${desc:-$desc_default}
 
-# Get your Band API key: paste it at the prompt (pre-set BAND_API_KEY to skip;
-# BAND_USER_API_KEY is honored as an alias).
-: "${BAND_API_KEY:=${BAND_USER_API_KEY:-}}"
+# Get your Band API key: paste it at the prompt (pre-set BAND_USER_API_KEY or
+# BAND_API_KEY to skip). BAND_USER_API_KEY wins when both are set — a stale
+# agent-scoped BAND_API_KEY must not hijack the user-scoped key.
+BAND_API_KEY="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
 if [ -z "${BAND_API_KEY:-}" ]; then
   [ -r /dev/tty ] || { echo "band: no terminal here to ask on — set BAND_API_KEY and run again." >&2; exit 1; }
   printf 'Paste your Band API key (hidden as you type): ' >/dev/tty

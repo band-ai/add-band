@@ -42,9 +42,10 @@ command -v uv >/dev/null || { echo "install uv first: https://docs.astral.sh/uv/
 command -v hermes >/dev/null || { echo "install hermes first"; exit 1; }
 command -v git >/dev/null || { echo "install git first"; exit 1; }
 
-# Get your Band API key: paste it at the prompt (pre-set BAND_API_KEY to skip;
-# BAND_USER_API_KEY is honored as an alias).
-: "${BAND_API_KEY:=${BAND_USER_API_KEY:-}}"
+# Get your Band API key: paste it at the prompt (pre-set BAND_USER_API_KEY or
+# BAND_API_KEY to skip). BAND_USER_API_KEY wins when both are set — a stale
+# agent-scoped BAND_API_KEY must not hijack the user-scoped key.
+BAND_API_KEY="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
 if [ -z "${BAND_API_KEY:-}" ]; then
   [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_API_KEY and re-run" >&2; exit 1; }
   printf 'Paste your Band API key: ' >/dev/tty
