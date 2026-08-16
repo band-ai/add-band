@@ -68,7 +68,11 @@ jobs:
         with:
           node-version: 20
 
+      # No cache: one uv sync per run, and the action's cache-prune post step
+      # exits 2 on the windows/macos runners.
       - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
 
       - name: Reap leftover Tom/Jerry agents
         env:
