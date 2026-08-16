@@ -93,8 +93,12 @@ if ! band_ready; then
   #    leave unset so register-agent.sh prompts on /dev/tty (works under
   #    `curl | bash`). The {{BAND_USER_API_KEY}} token stays for the web app and the
   #    catalog's check.py; this tolerates it being unsubstituted.
+  # Exported under both names: register-agent.sh gives BAND_USER_API_KEY
+  # precedence, so a stale key under either name in the operator's shell
+  # can't outrank the web app's substituted key; BAND_API_KEY stays the
+  # catalog-wide contract check.py asserts.
   USER_KEY='{{BAND_USER_API_KEY}}'
-  case "$USER_KEY" in *'{{'*) : ;; *) export BAND_API_KEY="$USER_KEY" ;; esac
+  case "$USER_KEY" in *'{{'*) : ;; *) export BAND_USER_API_KEY="$USER_KEY" BAND_API_KEY="$USER_KEY" ;; esac
 
   # 5. Mint the Band agent via the skill's hardened helper (key never on argv, HTTP
   #    status checked, jq/python3 — no node; no eval). It prints dotenv on stdout.
@@ -122,7 +126,7 @@ if ! band_ready; then
   #    egress proxy — so the key lives here too, alongside the vault secret.
   grep -q  '^BAND_AGENT_ID=' .env 2>/dev/null         || echo "BAND_AGENT_ID=$AGENT_ID" >> .env
   grep -qE '^BAND(_AGENT)?_API_KEY=' .env 2>/dev/null || echo "BAND_AGENT_API_KEY=$AGENT_KEY" >> .env
-  unset AGENT_KEY BAND_API_KEY
+  unset AGENT_KEY BAND_USER_API_KEY BAND_API_KEY
 
   echo "Registered Band agent $AGENT_ID; key written to .env (host adapter) and the OneCLI vault (containers)."
   echo "If the agent group's OneCLI secretMode is 'selective', grant it this secret (see /manage-channels)."

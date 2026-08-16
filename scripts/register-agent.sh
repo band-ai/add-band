@@ -138,14 +138,16 @@ case "$code" in
   *) echo "band: registration failed (HTTP ${code:-?}): $(printf '%.300s' "$out")" >&2; exit 1 ;;
 esac
 
-# Find a Python that actually runs. `command -v` alone is not enough: Windows
-# ships a python3.exe App Execution Alias that passes the lookup but opens the
-# Microsoft Store instead of executing, so probe with a no-op run. Candidates
-# are word-split on purpose ("py -3" is a command plus its flag).
+# Find a Python 3 that actually runs. `command -v` alone is not enough:
+# Windows ships a python3.exe App Execution Alias that passes the lookup but
+# opens the Microsoft Store instead of executing, and a bare `python` may be
+# Python 2, whose print() would emit a tuple repr that corrupts the parsed
+# credentials — so probe with a version-checked run. Candidates are
+# word-split on purpose ("py -3" is a command plus its flag).
 find_python() {
   local cand
   for cand in python3 python "py -3"; do
-    if $cand -c 'pass' >/dev/null 2>&1; then printf '%s' "$cand"; return 0; fi
+    if $cand -c 'import sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then printf '%s' "$cand"; return 0; fi
   done
   return 1
 }

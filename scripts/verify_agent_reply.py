@@ -41,6 +41,11 @@ from dotenv import load_dotenv
 # (the key, the agent id/name) are never overridden.
 load_dotenv()
 
+# Windows defaults stdout/stderr to a legacy codepage (cp1252) that can't
+# print an agent reply containing emoji; the reply content is arbitrary text.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 POLL_INTERVAL_SECONDS = 2.0
 
 
@@ -57,9 +62,19 @@ def _delete_room(client: RestClient, room_id: str) -> None:
     wrapper = client._client_wrapper
     url = f"{wrapper.get_base_url().rstrip('/')}/api/v1/me/chats/{room_id}"
     try:
-        httpx.delete(url, headers=wrapper.get_headers(), timeout=30.0)
-    except httpx.HTTPError:
-        pass
+        response = httpx.delete(url, headers=wrapper.get_headers(), timeout=30.0)
+        if response.status_code >= 300:
+            print(
+                f"verify: could not delete check room {room_id} "
+                f"(HTTP {response.status_code}) — delete it manually",
+                file=sys.stderr,
+            )
+    except httpx.HTTPError as e:
+        print(
+            f"verify: could not delete check room {room_id} ({e}) — "
+            "delete it manually",
+            file=sys.stderr,
+        )
 
 
 def main() -> int:
@@ -96,12 +111,21 @@ def main() -> int:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             time.sleep(POLL_INTERVAL_SECONDS)
-            messages = client.human_api_messages.list_my_chat_messages(
-                room_id, limit=50
-            ).data
+            messages = [
+                message
+                for message in client.human_api_messages.list_my_chat_messages(
+                    room_id, limit=50
+                ).data
+                if message.sender_id == agent_id
+            ]
+            # A real tokened reply wins over any error event in the same page
+            # (messages arrive newest-first, so an error emitted after the
+            # reply must not shadow it).
             for message in messages:
-                if message.sender_id != agent_id:
-                    continue
+                if message.message_type == "text" and token in message.content:
+                    print(f"verify: {agent_name} replied: {message.content}")
+                    return 0
+            for message in messages:
                 if message.message_type == "error":
                     print(
                         f"verify: {agent_name} reported an error instead of "
@@ -109,9 +133,6 @@ def main() -> int:
                         file=sys.stderr,
                     )
                     return 1
-                if message.message_type == "text" and token in message.content:
-                    print(f"verify: {agent_name} replied: {message.content}")
-                    return 0
 
         print(
             f"verify: {agent_name} did not reply within {timeout:.0f}s. "

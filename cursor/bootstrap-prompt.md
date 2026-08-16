@@ -117,6 +117,7 @@ Run via the terminal (foreground — these are short calls). Fetch the script on
 REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/register-agent.sh"
 SCRIPT_FILE=$(mktemp) && curl -fsSL "$REGISTER_URL" -o "$SCRIPT_FILE"
 export BAND_USER_API_KEY="<user-api-key-from-step-1>"
+export BAND_BASE_URL="<BAND_REST_URL from Step 1>"  # register-agent.sh targets this host
 
 # Tom
 export BAND_AGENT_NAME="Tom"
@@ -135,7 +136,7 @@ JERRY_API_KEY="$BAND_AGENT_API_KEY"
 # Clean up the shell — the tempfile is done; the user key is reused once more,
 # from memory, in Step 9's verification.
 rm -f "$SCRIPT_FILE"
-unset BAND_USER_API_KEY BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAND_AGENT_API_KEY
+unset BAND_USER_API_KEY BAND_BASE_URL BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAND_AGENT_API_KEY
 ```
 
 **Fail loudly on errors.** If either `curl … | bash` exits non-zero, or either `TOM_*` / `JERRY_*` variable comes back empty, STOP and surface the failure (including the script's stderr) to the user. Do NOT proceed to write any local files with half-provisioned agents — that leaves the user with an orphaned agent on the platform and a broken local setup. If only one of the two succeeded, tell the user explicitly so they know to clean it up on the platform before re-running.
@@ -370,7 +371,7 @@ Only add Tom as a participant — Tom finds and invites Jerry himself via the pl
 ## Rules for the agent
 
 - **Don't clone `band-ai/add-band` or `band-ai/band-sdk-python`.** Only fetch the specific files listed above.
-- **The user API key is sensitive.** Pass it via env (never argv); use it only in Step 5 and Step 9's verification; do not write it to any file on disk.
+- **The user API key is sensitive.** It arrives pasted in the conversation, and exporting it necessarily places it in the Bash tool's command text; beyond that, never pass it as a script argument, never write it to any file on disk, and use it only in Step 5 and Step 9's verification.
 - **Don't bundle copies of the examples, `register-agent.sh`, or `verify_agent_reply.py`** in the generated project — they are fetched live, every time.
 - **Don't walk the user through `characters.py`** — it's long and not relevant to onboarding.
 - **If a transformation pattern fails to match**, that's usually fine (the example already changed in a compatible way). If the *structure* looks unfamiliar (new imports you don't recognize, the agent class name changed, the `Agent.from_config` shape is different), STOP and surface what's odd — don't fabricate a fix.
