@@ -3,8 +3,9 @@
 # Drives the actual `claude` CLI headlessly through claude/bootstrap-prompt.md
 # Steps 1-9 against a test Band account, then independently asserts that Tom
 # answers a real message — the exact check whose absence shipped dead agents
-# to a prospect. ubuntu-only MVP; the windows/macos matrix is a fast-follow
-# once this lane is proven.
+# to a prospect. Runs on all three OSes INT-1211 asks about; ubuntu is the
+# merge gate, windows/macos report without blocking until they've proven
+# stable (flip continue-on-error once they have a green streak).
 name: bootstrap-claude-sdk-smoke
 
 on:
@@ -30,9 +31,23 @@ permissions:
 
 jobs:
   smoke:
-    runs-on: ubuntu-latest
+    strategy:
+      # Serialized for the same reason as the concurrency group: matrix jobs
+      # inside one run would otherwise race on the shared Tom/Jerry names.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    # windows/macos are informational until proven; ubuntu gates the merge.
+    continue-on-error: ${{ matrix.os != 'ubuntu-latest' }}
     timeout-minutes: 30
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        # One shell everywhere — on Windows this is Git Bash, which is also
+        # the environment the onboarding assumes (see INT-1211).
+        shell: bash
     env:
       BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
       BAND_REST_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
@@ -103,13 +118,15 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: agent-logs
+          name: agent-logs-${{ matrix.os }}
           path: ci-out/*.log
           if-no-files-found: ignore
 
       - name: Teardown
         if: always()
         run: |
+          # pkill doesn't exist in Windows Git Bash — the runner VM teardown
+          # kills the processes there; || true covers both that and no-match.
           pkill -f 'ci-out.*tom_agent.py' || true
           pkill -f 'ci-out.*jerry_agent.py' || true
           .github/workflows/scripts/reap-tom-jerry.sh
