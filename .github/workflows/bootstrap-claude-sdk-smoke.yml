@@ -4,8 +4,7 @@
 # Steps 1-8 (provision + scaffold) against a test Band account, launches the
 # agents in a deterministic workflow step, and independently asserts that Tom
 # answers a real message — an agent that only connects its WebSocket is not a
-# pass. Runs on all three OSes; ubuntu is the merge gate, windows/macos report
-# without blocking (flip continue-on-error once they have a green streak).
+# pass. Runs on all three supported OSes and gates merges on each one.
 name: bootstrap-claude-sdk-smoke
 
 on:
@@ -42,8 +41,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    # windows/macos are informational until proven; ubuntu gates the merge.
-    continue-on-error: ${{ matrix.os != 'ubuntu-latest' }}
     timeout-minutes: 30
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     defaults:
