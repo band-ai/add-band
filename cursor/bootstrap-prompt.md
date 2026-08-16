@@ -329,10 +329,12 @@ Cursor's Agent terminal doesn't keep long-lived processes alive after the agent 
 5. **Verify a real turn.** Fetch the canonical checker from this repo and run it against Tom (foreground):
    ```bash
    VERIFY_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/verify_agent_reply.py"
-   VERIFY_FILE=$(mktemp) && curl -fsSL "$VERIFY_URL" -o "$VERIFY_FILE"
-   cd <out> && BAND_USER_API_KEY="<user-api-key-from-step-1>" \
-     VERIFY_AGENT_ID="<TOM_AGENT_ID from Step 5>" VERIFY_AGENT_NAME="Tom" \
-     uv run python "$VERIFY_FILE"
+   VERIFY_FILE=$(mktemp) \
+     && curl -fsSL "$VERIFY_URL" -o "$VERIFY_FILE" \
+     && cd <out> \
+     && BAND_USER_API_KEY="<user-api-key-from-step-1>" \
+        VERIFY_AGENT_ID="<TOM_AGENT_ID from Step 5>" VERIFY_AGENT_NAME="Tom" \
+        uv run python "$VERIFY_FILE"
    rm -f "$VERIFY_FILE"
    ```
    It creates a throwaway room, sends Tom a uniquely-tokened @mention, and waits up to ~60s for a real reply (cleaning the room up afterwards). Exit 0 means Tom answered — only then report success. Non-zero means STOP: surface the script's stderr to the user instead of declaring success. The agents are connected but cannot answer; for `claude_sdk` that is almost always Claude Code auth — `claude login` missing, or a stray `ANTHROPIC_API_KEY` in the environment overriding a valid login.
