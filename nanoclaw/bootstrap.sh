@@ -16,6 +16,18 @@
 #     (src/modules/band-config.ts), which reads the raw key directly — it isn't
 #     behind the OneCLI egress proxy.
 set -euo pipefail
+_band_tty_state=""
+_band_restore_tty() {
+  if [ -n "${_band_tty_state:-}" ]; then
+    stty "$_band_tty_state" </dev/tty 2>/dev/null || stty sane </dev/tty 2>/dev/null || true
+  elif [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    stty sane </dev/tty 2>/dev/null || true
+  fi
+}
+if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+  _band_tty_state="$(stty -g </dev/tty 2>/dev/null || true)"
+fi
+trap _band_restore_tty EXIT
 
 FORK_REMOTE=band-ai
 FORK_URL="${NANOCLAW_REPO:-https://github.com/band-ai/nanoclaw-band}"
@@ -102,11 +114,11 @@ if ! band_ready; then
   #    fixed default collides on the second install (HTTP 422 "name already taken").
   umask 077
   creds=$(mktemp)
-  trap 'rm -f "${creds:-}" 2>/dev/null' EXIT
+  trap 'rm -f "${creds:-}" 2>/dev/null; _band_restore_tty' EXIT
   "$SKILL_DIR/scripts/register-agent.sh" > "$creds"
   AGENT_ID=$(grep '^BAND_AGENT_ID=' "$creds" | cut -d= -f2- || true)
   AGENT_KEY=$(grep -E '^BAND(_AGENT)?_API_KEY=' "$creds" | head -1 | cut -d= -f2- || true)
-  rm -f "$creds"; trap - EXIT
+  rm -f "$creds"; trap _band_restore_tty EXIT
   [ -n "$AGENT_ID" ] && [ -n "$AGENT_KEY" ] || { echo "registration returned no agent id/key" >&2; exit 1; }
 
   # 6. Stash the agent key in the OneCLI vault — the container band_* tools get it
@@ -146,6 +158,37 @@ nanoclaw_setup_done || echo "Note: NanoClaw isn't set up on this host yet — ru
 
 # 9. Hand off to the add-band skill — it owns the real install (copy from
 #    band-ai/band/adapter, imports, pinned deps, build, verify) and room wiring.
-#    `< /dev/tty` gives the skill the real terminal even under `curl | bash`.
-if command -v claude >/dev/null 2>&1; then claude /add-band < /dev/tty
-else cat "$SKILL_DIR/SKILL.md"; fi
+#    When this bootstrap is running under `curl | bash`, stdin is the script pipe,
+#    so avoid launching a nested interactive Claude TUI from inside the pipeline.
+if command -v claude >/dev/null 2>&1; then
+  if [ -t 0 ]; then
+    claude /add-band
+  else
+    _band_restore_tty
+    if [ -w /dev/tty ]; then
+      cat >/dev/tty <<EOF
+
+Band bootstrap is ready.
+
+Next, run this from a normal terminal prompt:
+
+  cd "$NANOCLAW_HOME"
+  claude /add-band
+
+EOF
+    else
+      cat <<EOF
+
+Band bootstrap is ready.
+
+Next, run this from a normal terminal prompt:
+
+  cd "$NANOCLAW_HOME"
+  claude /add-band
+
+EOF
+    fi
+  fi
+else
+  cat "$SKILL_DIR/SKILL.md"
+fi
