@@ -23,6 +23,11 @@ concurrency:
   group: bootstrap-claude-sdk-smoke
   cancel-in-progress: false
 
+# The job hands Bash to a model driven by PR-editable prompt files, so the
+# workflow token gets nothing beyond repository read.
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
@@ -36,7 +41,11 @@ jobs:
       # claude subprocess resolves this same variable.
       ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
     steps:
+      # No git auth after clone: don't leave even the read-only token in
+      # .git/config where the prompt-driven Bash could read it.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
