@@ -1,0 +1,175 @@
+# Live smoke for the Tom & Jerry bootstrap, claude_sdk lane (INT-1211).
+#
+# Drives the actual `claude` CLI headlessly through claude/bootstrap-prompt.md
+# Steps 1-8 (provision + scaffold) against a test Band account, launches the
+# agents in a deterministic workflow step, and independently asserts that Tom
+# answers a real message — an agent that only connects its WebSocket is not a
+# pass. Runs on all three supported OSes and gates merges on each one.
+name: bootstrap-claude-sdk-smoke
+
+on:
+  pull_request:
+    # Same-repo PRs only (fork PRs can't read the secrets; see the job `if`).
+    paths:
+      - claude/bootstrap-prompt.md
+      - scripts/register-agent.sh
+      - scripts/verify_agent_reply.py
+      - .github/workflows/bootstrap-claude-sdk-smoke.yml
+      - .github/workflows/scripts/reap-tom-jerry.sh
+  workflow_dispatch:
+
+# One run at a time: the platform enforces unique agent names per owner, so
+# concurrent runs on the shared test account would collide on Tom/Jerry.
+concurrency:
+  group: bootstrap-claude-sdk-smoke
+  cancel-in-progress: false
+
+# The job hands Bash to a model driven by PR-editable prompt files, so the
+# workflow token gets nothing beyond repository read. The Band/Anthropic
+# secrets are scoped per step below for the same reason — in particular, the
+# npm install step runs third-party postinstall scripts and gets none.
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      # Serialized for the same reason as the concurrency group: matrix jobs
+      # inside one run would otherwise race on the shared Tom/Jerry names.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        # One shell everywhere — on Windows this is Git Bash, which is also
+        # the environment the onboarding assumes (see INT-1211).
+        shell: bash
+    env:
+      # URLs only at job level; the API keys are step-scoped.
+      # register-agent.sh reads BAND_BASE_URL; everything else BAND_REST_URL.
+      BAND_REST_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
+      BAND_BASE_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
+      BAND_WS_URL: ${{ secrets.E2E_BAND_WS_URL || 'wss://app.band.ai/api/v1/socket/websocket' }}
+    steps:
+      # No git auth after clone: don't leave even the read-only token in
+      # .git/config where the prompt-driven Bash could read it.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # No cache: one uv sync per run, and the action's cache-prune post step
+      # exits 2 on the windows/macos runners.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      - name: Reap leftover Tom/Jerry agents
+        env:
+          BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+        run: .github/workflows/scripts/reap-tom-jerry.sh
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      # The prompt goes through a file: quoting a heredoc inside "$(...)"
+      # breaks on macOS's bash 3.2.
+      - name: Run the bootstrap headlessly (Steps 1-8)
+        env:
+          BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+          # Dogfoods the credential this incident was about: the scaffolded
+          # agents' claude subprocess resolves this same variable.
+          ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+        run: |
+          cat > ci-prompt.txt <<'PROMPT'
+          Read claude/bootstrap-prompt.md in this checkout and execute its
+          Steps 1 through 8 only — do NOT run Steps 9 or 10; CI launches and
+          verifies the agents itself afterwards. This is a headless run —
+          never call AskUserQuestion; every answer is pre-supplied here:
+
+          - Step 1: the Band user API key is in the BAND_USER_API_KEY
+            environment variable (never print or persist it). BAND_REST_URL
+            and BAND_WS_URL are in the environment too.
+          - Step 2: adapter = claude_sdk.
+          - Step 3: auth answer = "Use my ANTHROPIC_API_KEY" (it is already
+            exported in this job's environment).
+          - Step 4: output directory = ./ci-out
+          - Step 5: use the local scripts/register-agent.sh from this
+            checkout instead of fetching from main — this run must test THIS
+            branch's version.
+          - Step 8: leave the .env line as "ANTHROPIC_API_KEY=" (blank); the
+            process environment supplies the real value.
+
+          Stop and exit non-zero the moment any step fails.
+          PROMPT
+          claude -p "$(cat ci-prompt.txt)" \
+            --permission-mode dontAsk \
+            --allowedTools "Bash,Read,Edit,Write,Glob,Grep" \
+            --output-format text
+
+      # Launched here, not by the model: the launch shape must be
+      # deterministic, and the prompt file's own Step 9 forbids nohup for
+      # interactive Claude Code runs while CI needs processes that outlive
+      # the step.
+      - name: Launch the agents
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+        run: |
+          cd ci-out
+          uv sync
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            # Git Bash's nohup does not keep a child process alive reliably on
+            # the Windows runner. Launch uv.exe through PowerShell instead;
+            # this is only CI plumbing — the interactive flow uses Claude
+            # Code's run_in_background mechanism.
+            powershell.exe -NoProfile -NonInteractive -Command \
+              "Start-Process -FilePath (Get-Command uv).Source -ArgumentList @('run', 'python', 'tom_agent.py') -RedirectStandardOutput 'tom.stdout.log' -RedirectStandardError 'tom.stderr.log'"
+            powershell.exe -NoProfile -NonInteractive -Command \
+              "Start-Process -FilePath (Get-Command uv).Source -ArgumentList @('run', 'python', 'jerry_agent.py') -RedirectStandardOutput 'jerry.stdout.log' -RedirectStandardError 'jerry.stderr.log'"
+          else
+            nohup uv run python tom_agent.py > tom.log 2>&1 &
+            nohup uv run python jerry_agent.py > jerry.log 2>&1 &
+          fi
+          sleep 8
+          grep -q "Agent started: Tom" tom*.log
+          grep -q "Agent started: Jerry" jerry*.log
+
+      # The pass/fail gate is deliberately NOT the model's own report of
+      # success: a connected-but-mute agent passes the startup grep above and
+      # fails only here, on a real reply.
+      - name: Independently verify Tom replies
+        env:
+          BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+        run: |
+          TOM_ID=$(awk '/^tom_agent:/{f=1;next} f&&/agent_id:/{gsub(/"/,"",$2);print $2;exit}' ci-out/agent_config.yaml)
+          test -n "$TOM_ID"
+          cd ci-out && VERIFY_AGENT_ID="$TOM_ID" VERIFY_AGENT_NAME="Tom" \
+            uv run python ../scripts/verify_agent_reply.py
+
+      - name: Upload agent logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-logs-${{ matrix.os }}
+          path: ci-out/*.log
+          if-no-files-found: ignore
+
+      - name: Teardown
+        if: always()
+        env:
+          BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+        run: |
+          # Match the script name — the processes' argv is "python
+          # tom_agent.py" (cwd never appears in it). pkill doesn't exist in
+          # Windows Git Bash; the runner VM teardown kills the processes
+          # there, and || true covers both that and no-match.
+          pkill -f 'tom_agent\.py' || true
+          pkill -f 'jerry_agent\.py' || true
+          .github/workflows/scripts/reap-tom-jerry.sh

@@ -7,10 +7,11 @@ You are following the Band.ai Tom & Jerry onboarding instructions. The user has 
 
 ## Source of truth
 
-These instructions fetch two kinds of external resources, both always from `main`:
+These instructions fetch three kinds of external resources, all always from `main`:
 
 1. **`scripts/register-agent.sh`** from `band-ai/add-band` (the repo where this file lives) — the helper used to provision the agents in Step 5.
-2. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6.
+2. **`scripts/verify_agent_reply.py`** from `band-ai/add-band` — the checker used to verify a real agent reply in Step 9.
+3. **Example agent files + `characters.py`** from `band-ai/band-sdk-python` — fetched and transformed in Step 6.
 
 These instructions may themselves be loaded from any branch. Their external
 references use each repository's `main` branch.
@@ -52,7 +53,7 @@ If the user API key is missing, ask the user for it before proceeding.
 
 - **Framework + your LLM key** — Run inside an agent framework (langgraph / crewai / pydantic_ai). You provide an OpenAI or Anthropic API key.
 - **Direct Anthropic SDK** — Plain Anthropic SDK loop. Needs an Anthropic API key. *(sets `adapter = anthropic`)*
-- **Claude Agent SDK** — Uses the Claude Code subprocess. **No external LLM key needed** — requires Node.js 20+ and `npm install -g @anthropic-ai/claude-code`. *(sets `adapter = claude_sdk`)*
+- **Claude Agent SDK** — Uses the Claude Code subprocess. **Needs Claude Code authenticated** (`claude login`, or an `ANTHROPIC_API_KEY`) — requires Node.js 20+ and `npm install -g @anthropic-ai/claude-code`. *(sets `adapter = claude_sdk`)*
 - **Parlant** — Conversation-modeling framework. Needs an OpenAI API key. *(sets `adapter = parlant`)*
 
 **Step 2b — Ask the framework** *(only if Step 2a was "Framework + your LLM key")* (single-select, 3 options):
@@ -66,9 +67,26 @@ If the user API key is missing, ask the user for it before proceeding.
 | Adapter | LLM question | LLM env var |
 |---|---|---|
 | `anthropic` | Skip — Anthropic only | `ANTHROPIC_API_KEY` |
-| `claude_sdk` | Skip — no external LLM | none |
+| `claude_sdk` | Ask — confirm Claude Code auth (below) | none or `ANTHROPIC_API_KEY` |
 | `parlant` | Skip — OpenAI only (default NLP service) | `OPENAI_API_KEY` |
 | `crewai`, `langgraph`, `pydantic_ai` | Ask: OpenAI or Anthropic | matching key |
+
+**For `claude_sdk` — confirm Claude Code auth.** The spawned `claude` CLI
+resolves credentials on its own: an `ANTHROPIC_API_KEY` present in the
+environment **takes precedence over** a `claude login` session, so being
+logged in is not enough if a stale key is exported. AskUserQuestion
+(single-select):
+
+- **I'm logged in via `claude login`** — no key line in `.env`. Then check the
+  environment (`printenv ANTHROPIC_API_KEY`): if a key is set, warn the user
+  it will silently override their login for the spawned CLI, and ask whether
+  they want to remove it from their shell profile or use it instead (which
+  switches their answer to the option below).
+- **Use my `ANTHROPIC_API_KEY`** — treat like the `anthropic` adapter from
+  here on: the key line goes in `.env` (Step 7) and the key itself is
+  collected in Step 8.
+- **Not set up yet** — tell the user to run `claude login` (or create a key at
+  console.anthropic.com), wait for their reply, then re-ask this question.
 
 ### Step 4 — Confirm output directory
 
@@ -91,6 +109,7 @@ Run via Bash (foreground — these are short calls). Fetch the script once into 
 REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/register-agent.sh"
 SCRIPT_FILE=$(mktemp) && curl -fsSL "$REGISTER_URL" -o "$SCRIPT_FILE"
 export BAND_USER_API_KEY="<user-api-key-from-step-1>"
+export BAND_BASE_URL="<BAND_REST_URL from Step 1>"  # register-agent.sh targets this host
 
 # Tom
 export BAND_AGENT_NAME="Tom"
@@ -106,9 +125,10 @@ eval "$(bash "$SCRIPT_FILE")"
 JERRY_AGENT_ID="$BAND_AGENT_ID"
 JERRY_API_KEY="$BAND_AGENT_API_KEY"
 
-# Clean up — user key + tempfile not needed past this point.
+# Clean up the shell — the tempfile is done; the user key is reused once more,
+# from memory, in Step 9's verification.
 rm -f "$SCRIPT_FILE"
-unset BAND_USER_API_KEY BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAND_AGENT_API_KEY
+unset BAND_USER_API_KEY BAND_BASE_URL BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAND_AGENT_API_KEY
 ```
 
 **Fail loudly on errors.** If either `curl … | bash` exits non-zero, or either `TOM_*` / `JERRY_*` variable comes back empty, STOP and surface the failure (including the script's stderr) to the user. Do NOT proceed to write any local files with half-provisioned agents — that leaves the user with an orphaned agent on the platform and a broken local setup. If only one of the two succeeded, tell the user explicitly so they know to clean it up on the platform before re-running.
@@ -119,7 +139,7 @@ unset BAND_USER_API_KEY BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAN
 
 Then **wait for the user's reply** — do not retry on your own, do not move on to Step 6, do not write any files. When the user confirms they've cleaned up, retry Step 5 from the top. If they ask to abort, stop cleanly.
 
-Keep `TOM_AGENT_ID`, `TOM_API_KEY`, `JERRY_AGENT_ID`, `JERRY_API_KEY` in memory for Step 7. Do NOT write the user API key anywhere on disk — it's used only here.
+Keep `TOM_AGENT_ID`, `TOM_API_KEY`, `JERRY_AGENT_ID`, `JERRY_API_KEY` in memory for Steps 7 and 9. Do NOT write the user API key anywhere on disk — it's used only here and in Step 9's verification.
 
 ### Step 6 — Fetch and transform the example files
 
@@ -202,7 +222,8 @@ jerry_agent:
 **`<out>/.env`** — use the REST/WS URLs from Step 1, default to production if absent. The third line depends on the LLM choice:
 - OpenAI → `OPENAI_API_KEY=`
 - Anthropic (incl. the `anthropic` adapter) → `ANTHROPIC_API_KEY=`
-- `claude_sdk` → omit entirely
+- `claude_sdk` with `claude login` confirmed in Step 3 → omit entirely
+- `claude_sdk` with the `ANTHROPIC_API_KEY` answer in Step 3 → `ANTHROPIC_API_KEY=`
 - `parlant` → `OPENAI_API_KEY=`
 
 ```
@@ -252,7 +273,8 @@ __pycache__/
 
 ### Step 8 — Ask how to handle the LLM API key
 
-Skip for `claude_sdk`.
+Skip for `claude_sdk` only when Step 3 confirmed `claude login`; if the user
+chose `ANTHROPIC_API_KEY` there, handle that key here like any other.
 
 AskUserQuestion (single-select, the question itself):
 - **I'll add it to the .env myself** — show the path `<out>/.env` and which line to fill, then stop.
@@ -274,6 +296,8 @@ AskUserQuestion (single-select):
   uv run python tom_agent.py     # terminal 1
   uv run python jerry_agent.py   # terminal 2
   ```
+  Then offer: once both agents are running, say so and Claude will run the
+  same verification described in item 5 below to confirm Tom actually answers.
 - **Claude, run them for me** — do these in order. Use the *exact* command form shown; small variations have broken past runs.
 
   1. **Foreground `uv sync`** in `<out>` and wait for it to finish. If it exits non-zero, STOP and surface the error — the background launches below assume `uv sync` succeeded.
@@ -288,8 +312,20 @@ AskUserQuestion (single-select):
      ```bash
      cd <out> && uv run python jerry_agent.py
      ```
-  4. Wait ~8 seconds, then `BashOutput` each ID and confirm you see `Agent started: Tom` and `Agent started: Jerry` log lines (and no Python traceback). If either failed, surface the error before moving on.
-  5. Tell the user the two bash IDs and how to peek at logs (`BashOutput` with each ID).
+  4. Wait ~8 seconds, then `BashOutput` each ID and confirm you see `Agent started: Tom` and `Agent started: Jerry` log lines (and no Python traceback). If either failed, surface the error before moving on. These lines only mean the WebSockets connected — they do **not** prove the agents can answer a message, so never declare success from them alone.
+  5. **Verify a real turn.** Fetch the canonical checker from this repo and run it against Tom (foreground):
+     ```bash
+     VERIFY_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/verify_agent_reply.py"
+     VERIFY_FILE=$(mktemp)
+     trap 'rm -f "$VERIFY_FILE"' EXIT
+     curl -fsSL "$VERIFY_URL" -o "$VERIFY_FILE" \
+       && cd <out> \
+       && BAND_USER_API_KEY="<user-api-key-from-step-1>" \
+          VERIFY_AGENT_ID="<TOM_AGENT_ID from Step 5>" VERIFY_AGENT_NAME="Tom" \
+          uv run python "$VERIFY_FILE"
+     ```
+     It creates a throwaway room, sends Tom a uniquely-tokened @mention, and waits up to ~60s for a real reply (cleaning the room up afterwards). Exit 0 means Tom answered — only then report success. Non-zero means STOP: surface the script's stderr to the user instead of declaring success. The agents are connected but cannot answer; for `claude_sdk` that is almost always Claude Code auth — `claude login` missing, or a stray `ANTHROPIC_API_KEY` in the environment overriding a valid login.
+  6. Tell the user the two bash IDs and how to peek at logs (`BashOutput` with each ID).
 
   **Don't:**
   - Don't combine both agents into one Bash call — they're long-running processes; if you sequence them, Tom blocks forever and Jerry never starts.
@@ -318,8 +354,8 @@ Only add Tom as a participant — Tom finds and invites Jerry himself via the pl
 ## Rules for Claude
 
 - **Don't clone `band-ai/add-band` or `band-ai/band-sdk-python`.** Only fetch the specific files listed above.
-- **The user API key is sensitive.** Pass it via env (never argv); use it only in Step 5; do not write it to any file on disk.
-- **Don't bundle copies of the examples or `register-agent.sh`** in the generated project — they are fetched live, every time.
+- **The user API key is sensitive.** It arrives pasted in the conversation, and exporting it necessarily places it in the Bash tool's command text; beyond that, never pass it as a script argument, never write it to any file on disk, and use it only in Step 5 and Step 9's verification.
+- **Don't bundle copies of the examples, `register-agent.sh`, or `verify_agent_reply.py`** in the generated project — they are fetched live, every time.
 - **Don't walk the user through `characters.py`** — it's long and not relevant to onboarding.
 - **If a transformation pattern fails to match**, that's usually fine (the example already changed in a compatible way). If the *structure* looks unfamiliar (new imports you don't recognize, the agent class name changed, the `Agent.from_config` shape is different), STOP and surface what's odd — don't fabricate a fix.
 - **Respect existing files.** If `<out>/` is non-empty, ask before overwriting.
