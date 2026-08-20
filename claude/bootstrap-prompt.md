@@ -84,7 +84,12 @@ logged in is not enough if a stale key is exported. AskUserQuestion
   switches their answer to the option below).
 - **Use my `ANTHROPIC_API_KEY`** — treat like the `anthropic` adapter from
   here on: the key line goes in `.env` (Step 7) and the key itself is
-  collected in Step 8.
+  collected in Step 8. Check the environment (`printenv ANTHROPIC_API_KEY`)
+  first: if a key is already set there and it differs from the one the user
+  is about to supply, warn them that the exported value will silently
+  override whatever gets written to `.env` for the spawned CLI, and offer to
+  unset it from their shell profile — otherwise the `.env` line is dead
+  weight.
 - **Not set up yet** — tell the user to run `claude login` (or create a key at
   console.anthropic.com), wait for their reply, then re-ask this question.
 

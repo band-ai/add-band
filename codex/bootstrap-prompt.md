@@ -99,6 +99,13 @@ their login for the spawned CLI, and ask whether they want to remove it from
 their shell profile or use it instead (which switches their answer to
 option 2).
 
+If the user picks option 2, also check the environment (`printenv
+ANTHROPIC_API_KEY`) first: if a key is already set there and it differs from
+the one the user is about to supply, warn them that the exported value will
+silently override whatever gets written to `.env` for the spawned CLI, and
+offer to unset it from their shell profile — otherwise the `.env` line is
+dead weight.
+
 **For `codex` — confirm Codex CLI auth.** Ask the user (numbered list):
 
 > Is the Codex CLI logged in on this machine (`codex login`)?
