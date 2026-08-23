@@ -76,8 +76,21 @@ jobs:
           BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
         run: .github/workflows/scripts/reap-tom-jerry.sh
 
+      # npm's global install links `claude` as an npm-generated .cmd shim on
+      # Windows. claude-agent-sdk>=0.2.144 refuses to spawn a batch script on
+      # Windows (hardening against cmd.exe argument injection), so the
+      # spawned agents' claude subprocess never connects (INT-1266). The
+      # native installer places a real claude.exe instead; macOS/Linux keep
+      # the npm install since their shim is a plain shebang script.
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            powershell.exe -NoProfile -NonInteractive -Command \
+              "irm https://claude.ai/install.ps1 | iex"
+            echo "$USERPROFILE\.local\bin" >> "$GITHUB_PATH"
+          else
+            npm install -g @anthropic-ai/claude-code
+          fi
 
       # The prompt goes through a file: quoting a heredoc inside "$(...)"
       # breaks on macOS's bash 3.2.
