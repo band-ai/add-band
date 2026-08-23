@@ -137,7 +137,13 @@ jobs:
             nohup uv run python tom_agent.py > tom.log 2>&1 &
             nohup uv run python jerry_agent.py > jerry.log 2>&1 &
           fi
-          sleep 8
+          for _ in $(seq 1 30); do
+            if grep -q "Agent started: Tom" tom*.log 2>/dev/null &&
+               grep -q "Agent started: Jerry" jerry*.log 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
           grep -q "Agent started: Tom" tom*.log
           grep -q "Agent started: Jerry" jerry*.log
 

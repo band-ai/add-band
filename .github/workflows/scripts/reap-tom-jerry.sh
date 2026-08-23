@@ -9,10 +9,15 @@ base="${BAND_REST_URL:-https://app.band.ai}"; base="${base%/}"
 fail=0
 
 for name in Tom Jerry; do
-  resp=$(curl -sSL -H "X-API-Key: $BAND_USER_API_KEY" \
+  resp=$(curl -sSL -w $'\n%{http_code}' -H "X-API-Key: $BAND_USER_API_KEY" \
     "$base/api/v1/me/agents?name=$name") || {
     echo "reap: listing $name failed" >&2; fail=1; continue
   }
+  code=${resp##*$'\n'}; resp=${resp%$'\n'*}
+  case "$code" in
+    2*) ;;
+    *) echo "reap: listing $name failed (HTTP $code)" >&2; fail=1; continue ;;
+  esac
   ids=$(printf '%s' "$resp" |
     jq -r --arg name "$name" '.data // [] | .[]? | select(.name == $name) | .id') || {
     echo "reap: unexpected list response for $name" >&2; fail=1; continue
