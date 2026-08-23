@@ -4,7 +4,10 @@
 # Steps 1-8 (provision + scaffold) against a test Band account, launches the
 # agents in a deterministic workflow step, and independently asserts that Tom
 # answers a real message — an agent that only connects its WebSocket is not a
-# pass. Runs on all three supported OSes and gates merges on each one.
+# pass. Runs on all three supported OSes in parallel and gates merges on each
+# one — each OS lane registers its own Tom-<os>/Jerry-<os> pair (INT-1266) so
+# the three lanes never collide on the platform's per-owner unique-name
+# constraint.
 name: bootstrap-claude-sdk-smoke
 
 on:
@@ -34,9 +37,12 @@ permissions:
 jobs:
   smoke:
     strategy:
-      # Serialized for the same reason as the concurrency group: matrix jobs
-      # inside one run would otherwise race on the shared Tom/Jerry names.
-      max-parallel: 1
+      # No max-parallel: each lane's TOM_NAME/JERRY_NAME below is suffixed
+      # with matrix.os, so the three lanes never race on the platform's
+      # per-owner unique-name constraint (INT-1266). The job-level
+      # concurrency group above still serializes different *runs* of this
+      # workflow — that's a separate collision (two PRs' CI at once) this
+      # per-lane suffix doesn't address.
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -54,6 +60,9 @@ jobs:
       BAND_REST_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
       BAND_BASE_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
       BAND_WS_URL: ${{ secrets.E2E_BAND_WS_URL || 'wss://app.band.ai/api/v1/socket/websocket' }}
+      # Per-lane agent names (INT-1266) — see the strategy comment above.
+      TOM_NAME: Tom-${{ matrix.os }}
+      JERRY_NAME: Jerry-${{ matrix.os }}
     steps:
       # No git auth after clone: don't leave even the read-only token in
       # .git/config where the prompt-driven Bash could read it.
@@ -74,10 +83,23 @@ jobs:
       - name: Reap leftover Tom/Jerry agents
         env:
           BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
-        run: .github/workflows/scripts/reap-tom-jerry.sh
+        run: .github/workflows/scripts/reap-tom-jerry.sh "$TOM_NAME" "$JERRY_NAME"
 
+      # npm's global install links `claude` as an npm-generated .cmd shim on
+      # Windows. claude-agent-sdk>=0.2.144 refuses to spawn a batch script on
+      # Windows (hardening against cmd.exe argument injection), so the
+      # spawned agents' claude subprocess never connects (INT-1266). The
+      # native installer places a real claude.exe instead; macOS/Linux keep
+      # the npm install since their shim is a plain shebang script.
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            powershell.exe -NoProfile -NonInteractive -Command \
+              "irm https://claude.ai/install.ps1 | iex"
+            echo "$USERPROFILE\.local\bin" >> "$GITHUB_PATH"
+          else
+            npm install -g @anthropic-ai/claude-code
+          fi
 
       # The prompt goes through a file: quoting a heredoc inside "$(...)"
       # breaks on macOS's bash 3.2.
@@ -103,7 +125,11 @@ jobs:
           - Step 4: output directory = ./ci-out
           - Step 5: use the local scripts/register-agent.sh from this
             checkout instead of fetching from main — this run must test THIS
-            branch's version.
+            branch's version. Name the two agents "Tom-${{ matrix.os }}" and
+            "Jerry-${{ matrix.os }}" instead of the prompt file's literal
+            "Tom"/"Jerry" — this OS lane runs in parallel with the other two
+            on the same test account, and the platform enforces unique agent
+            names per owner.
           - Step 8: leave the .env line as "ANTHROPIC_API_KEY=" (blank); the
             process environment supplies the real value.
 
@@ -138,14 +164,14 @@ jobs:
             nohup uv run python jerry_agent.py > jerry.log 2>&1 &
           fi
           for _ in $(seq 1 30); do
-            if grep -q "Agent started: Tom" tom*.log 2>/dev/null &&
-               grep -q "Agent started: Jerry" jerry*.log 2>/dev/null; then
+            if grep -qF "Agent started: $TOM_NAME" tom*.log 2>/dev/null &&
+               grep -qF "Agent started: $JERRY_NAME" jerry*.log 2>/dev/null; then
               break
             fi
             sleep 2
           done
-          grep -q "Agent started: Tom" tom*.log
-          grep -q "Agent started: Jerry" jerry*.log
+          grep -qF "Agent started: $TOM_NAME" tom*.log
+          grep -qF "Agent started: $JERRY_NAME" jerry*.log
 
       # The pass/fail gate is deliberately NOT the model's own report of
       # success: a connected-but-mute agent passes the startup grep above and
@@ -156,7 +182,7 @@ jobs:
         run: |
           TOM_ID=$(awk '/^tom_agent:/{f=1;next} f&&/agent_id:/{gsub(/"/,"",$2);print $2;exit}' ci-out/agent_config.yaml)
           test -n "$TOM_ID"
-          cd ci-out && VERIFY_AGENT_ID="$TOM_ID" VERIFY_AGENT_NAME="Tom" \
+          cd ci-out && VERIFY_AGENT_ID="$TOM_ID" VERIFY_AGENT_NAME="$TOM_NAME" \
             uv run python ../scripts/verify_agent_reply.py
 
       - name: Upload agent logs
@@ -178,4 +204,4 @@ jobs:
           # there, and || true covers both that and no-match.
           pkill -f 'tom_agent\.py' || true
           pkill -f 'jerry_agent\.py' || true
-          .github/workflows/scripts/reap-tom-jerry.sh
+          .github/workflows/scripts/reap-tom-jerry.sh "$TOM_NAME" "$JERRY_NAME"
