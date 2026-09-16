@@ -1,0 +1,6 @@
+# Catalog metadata for the NemoClaw integration.
+name: NemoClaw
+repo: https://github.com/NVIDIA/NemoClaw
+connects_via: nemoclaw CLI (OpenClaw sandbox)
+status: available
+summary: Run OpenClaw inside an explicit-egress NemoClaw sandbox — the snippet onboards the sandbox on Anthropic, applies the Band egress policy, installs the openclaw-channel-band plugin, and registers an agent as its channel account.
