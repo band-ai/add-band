@@ -153,7 +153,7 @@ JERRY_API_KEY="$BAND_AGENT_API_KEY"
 
 # Clean up the shell — the tempfile is done; the user key is reused once more,
 # from memory, in Step 9's verification.
-rm -f "$SCRIPT_FILE"
+rm "$SCRIPT_FILE"
 unset BAND_USER_API_KEY BAND_BASE_URL BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAND_AGENT_API_KEY
 ```
 
@@ -353,7 +353,7 @@ Codex doesn't have a clean background-task surface, so run the agents detached v
    ```bash
    VERIFY_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/verify_agent_reply.py"
    VERIFY_FILE=$(mktemp)
-   trap 'rm -f "$VERIFY_FILE"' EXIT
+   trap 'rm "$VERIFY_FILE"' EXIT
    curl -fsSL "$VERIFY_URL" -o "$VERIFY_FILE" \
      && cd <out> \
      && BAND_USER_API_KEY="<user-api-key-from-step-1>" \
@@ -399,3 +399,4 @@ Only add Tom as a participant — Tom finds and invites Jerry himself via the pl
 - **If a transformation pattern fails to match**, that's usually fine (the example already changed in a compatible way). If the *structure* looks unfamiliar (new imports you don't recognize, the agent class name changed, the `Agent.from_config` shape is different), STOP and surface what's odd — don't fabricate a fix.
 - **Respect existing files.** If `<out>/` is non-empty, ask before overwriting.
 - **Stop after Step 10.** No refactors, no extra suggestions.
+- **Never run `rm -f`, `rm --force`, `rm -rf`, or any other `rm` invocation carrying a force flag, anywhere, including inside `trap`, `if`, `for`, or other compound shell syntax.** Codex's own exec policy hard-rejects any command matching that shape — even under a fully-permissive sandbox — and the whole tool call fails with no usable output. Every temp file or directory this procedure creates (via `mktemp`/`mktemp -d`) is guaranteed to exist when you clean it up, so a plain `rm <path>` or `rm -r <dir>` (no force flag) is always sufficient — never reach for `-f` "just in case."
