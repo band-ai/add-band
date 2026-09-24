@@ -35,6 +35,23 @@ def _skill_case_arms() -> list[set[str]]:
     return [set(re.findall(r"^\s*([a-zA-Z_][a-zA-Z0-9_]*)\)", block, re.MULTILINE)) for block in blocks]
 
 
+def _install_cli_arm_bodies() -> dict[str, str]:
+    """Label -> script body for each arm of the `Install CLI` step's case block."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    step = re.search(r"name: Install CLI\n\s*run: \|\n(.*?)\n(?=\s*- name:)", text, re.DOTALL)
+    assert step, "Install CLI step not found in bootstrap-skill-smoke.yml"
+    arms = re.findall(r"^\s*([a-zA-Z_][a-zA-Z0-9_]*)\)\n(.*?)\n\s*;;", step.group(1), re.DOTALL | re.MULTILINE)
+    return dict(arms)
+
+
+def _setup_node_allowlist() -> set[str]:
+    """The skill set `setup-node`'s `if: contains(fromJson(...), matrix.skill)` allowlists."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    match = re.search(r"if: contains\(fromJson\('(\[.*?\])'\), matrix\.skill\)", text)
+    assert match, "setup-node's allowlist if: not found in bootstrap-skill-smoke.yml"
+    return set(json.loads(match.group(1)))
+
+
 class TestComputeMatrix:
     """The compute-matrix job's own logic, run exactly as committed."""
 
@@ -62,3 +79,18 @@ class TestSkillCaseArms:
                 f"case arms {sorted(arms)} != STUB_ONLY {sorted(check.STUB_ONLY)} "
                 f"in one of bootstrap-skill-smoke.yml's case blocks."
             )
+
+
+class TestSetupNodeAllowlist:
+    """`setup-node`'s skill allowlist covers exactly the skills whose Install CLI arm needs npm."""
+
+    def test_matches_npm_installing_skills(self):
+        npm_skills = {
+            label for label, body in _install_cli_arm_bodies().items() if "npm install" in body
+        }
+        assert npm_skills, "no Install CLI arm invokes npm install"
+        allowlist = _setup_node_allowlist()
+        assert allowlist == npm_skills, (
+            f"setup-node's allowlist {sorted(allowlist)} != skills whose Install CLI arm "
+            f"invokes npm install {sorted(npm_skills)}"
+        )

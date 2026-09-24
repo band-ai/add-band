@@ -62,7 +62,7 @@ jobs:
     needs: compute-matrix
     strategy:
       # No max-parallel: every cell's TOM_NAME/JERRY_NAME below is suffixed
-      # with matrix.skill-matrix.os, so no two cells ever race on the
+      # with matrix.skill and matrix.os, so no two cells ever race on the
       # platform's per-owner unique-name constraint (INT-1266, INT-1536).
       # The job-level concurrency group above still serializes different
       # *runs* of this workflow — that's a separate collision (two PRs' CI
@@ -167,6 +167,9 @@ jobs:
           # credentials to run at all — independent of which inner adapter
           # the scaffolded Tom/Jerry agents end up using.
           ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+          # codex exec's own auth resolution reads CODEX_API_KEY, never
+          # OPENAI_API_KEY (openai/codex codex-rs/login/src/auth/manager.rs).
+          CODEX_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
           CURSOR_API_KEY: ${{ secrets.E2E_CURSOR_API_KEY }}
         run: |
@@ -217,7 +220,7 @@ jobs:
           - Step 2: pick Step 2a option 4, "OpenAI Codex" — sets
             adapter = codex.
           - Step 3: the Codex CLI auth answer is "Yes, logged in" — the
-            OPENAI_API_KEY environment variable is already exported in this
+            CODEX_API_KEY environment variable is already exported in this
             job's environment, which authenticates "codex exec" directly;
             no interactive "codex login" is needed or possible here.
           DELTA
@@ -256,6 +259,9 @@ jobs:
       - name: Launch the agents
         env:
           ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+          # The codex adapter's spawned CLI subprocess inherits this step's
+          # env (band.adapters.codex's codex_env defaults to None).
+          CODEX_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
         run: |
           cd ci-out
           uv sync
