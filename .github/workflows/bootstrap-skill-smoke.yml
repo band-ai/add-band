@@ -1,0 +1,343 @@
+# Live smoke for the Tom & Jerry bootstrap, across every coding-agent skill
+# (INT-1211, INT-1536).
+#
+# Drives each skill's own CLI headlessly through <skill>/bootstrap-prompt.md
+# Steps 1-8 (provision + scaffold) against a test Band account, launches the
+# agents in a deterministic workflow step, and independently asserts that Tom
+# answers a real message — an agent that only connects its WebSocket is not a
+# pass. Runs the full skill x OS matrix in parallel and gates merges on each
+# cell — every cell registers its own Tom-<skill>-<os>/Jerry-<skill>-<os> pair
+# (INT-1266, INT-1536) so no two cells collide on the platform's per-owner
+# unique-name constraint.
+name: bootstrap-skill-smoke
+
+on:
+  pull_request:
+    # Same-repo PRs only (fork PRs can't read the secrets; see the job `if`).
+    paths:
+      - "*/bootstrap-prompt.md"
+      - scripts/register-agent.sh
+      - scripts/verify_agent_reply.py
+      - .github/workflows/bootstrap-skill-smoke.yml
+      - .github/workflows/scripts/reap-tom-jerry.sh
+  workflow_dispatch:
+
+# One run at a time: the platform enforces unique agent names per owner, so
+# concurrent runs on the shared test account would collide on Tom/Jerry.
+concurrency:
+  group: bootstrap-skill-smoke
+  cancel-in-progress: false
+
+# The job hands a shell to a model driven by PR-editable prompt files, so the
+# workflow token gets nothing beyond repository read. The Band/vendor secrets
+# are scoped per step below for the same reason — in particular, the npm/curl
+# install steps run third-party postinstall scripts and get none.
+permissions:
+  contents: read
+
+jobs:
+  # STUB_ONLY (scripts/check.py) is already the single source of truth for
+  # "which folders are coding-agent skills" — computing the matrix from it
+  # directly (instead of hand-spelling a second, independent skill list here)
+  # means a skill can't ship registered but uncovered, with nothing to keep
+  # in sync and no drift test needed.
+  compute-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      skills: ${{ steps.skills.outputs.skills }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: skills
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, sys
+          sys.path.insert(0, "scripts")
+          import check
+          print(f"skills={json.dumps(sorted(check.STUB_ONLY))}")
+          PY
+
+  smoke:
+    needs: compute-matrix
+    strategy:
+      # No max-parallel: every cell's TOM_NAME/JERRY_NAME below is suffixed
+      # with matrix.skill and matrix.os, so no two cells ever race on the
+      # platform's per-owner unique-name constraint (INT-1266, INT-1536).
+      # The job-level concurrency group above still serializes different
+      # *runs* of this workflow — that's a separate collision (two PRs' CI
+      # at once) this per-cell suffix doesn't address.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        skill: ${{ fromJson(needs.compute-matrix.outputs.skills) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    defaults:
+      run:
+        # One shell everywhere — on Windows this is Git Bash, which is also
+        # the environment the onboarding assumes (see INT-1211).
+        shell: bash
+    env:
+      # URLs only at job level; the API keys are step-scoped.
+      # register-agent.sh reads BAND_BASE_URL; everything else BAND_REST_URL.
+      BAND_REST_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
+      BAND_BASE_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
+      BAND_WS_URL: ${{ secrets.E2E_BAND_WS_URL || 'wss://app.band.ai/api/v1/socket/websocket' }}
+      # Per-cell agent names (INT-1266, INT-1536) — see the strategy comment
+      # above.
+      TOM_NAME: Tom-${{ matrix.skill }}-${{ matrix.os }}
+      JERRY_NAME: Jerry-${{ matrix.skill }}-${{ matrix.os }}
+    steps:
+      # No git auth after clone: don't leave even the read-only token in
+      # .git/config where the prompt-driven shell could read it.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Only the npm-installed CLIs need Node.js. Allowlisted (not "!=
+      # cursor") so a future non-npm skill defaults to skipping this step
+      # without an edit here.
+      - uses: actions/setup-node@v4
+        if: contains(fromJson('["claude", "codex"]'), matrix.skill)
+        with:
+          node-version: 20
+
+      # No cache: one uv sync per run, and the action's cache-prune post step
+      # exits 2 on the windows/macos runners.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      - name: Reap leftover Tom/Jerry agents
+        env:
+          BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+        run: .github/workflows/scripts/reap-tom-jerry.sh "$TOM_NAME" "$JERRY_NAME"
+
+      # Installs the CLI that this matrix cell drives through its own
+      # bootstrap-prompt.md. claude's Windows branch installs natively rather
+      # than via npm: npm's global install links `claude` as an npm-generated
+      # .cmd shim, and claude-agent-sdk>=0.2.144 refuses to spawn a batch
+      # script on Windows (hardening against cmd.exe argument injection), so
+      # the spawned agents' claude subprocess never connects (INT-1266).
+      - name: Install CLI
+        run: |
+          case "${{ matrix.skill }}" in
+            claude)
+              if [[ "$RUNNER_OS" == "Windows" ]]; then
+                powershell.exe -NoProfile -NonInteractive -Command \
+                  "irm https://claude.ai/install.ps1 | iex"
+                echo "$USERPROFILE\.local\bin" >> "$GITHUB_PATH"
+              else
+                npm install -g @anthropic-ai/claude-code
+              fi
+              ;;
+            codex)
+              npm install -g @openai/codex
+              ;;
+            cursor)
+              # Per https://cursor.com/docs/cli/github-actions.
+              if [[ "$RUNNER_OS" == "Windows" ]]; then
+                powershell.exe -NoProfile -NonInteractive -Command \
+                  "irm 'https://cursor.com/install?win32=true' | iex"
+                # The installer's own PATH update is a registry write
+                # ("User" scope) that later steps' fresh shells don't see;
+                # only $GITHUB_PATH propagates across steps.
+                echo "$LOCALAPPDATA\cursor-agent" >> "$GITHUB_PATH"
+              else
+                curl https://cursor.com/install -fsS | bash
+                echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+              fi
+              ;;
+            *)
+              echo "Install CLI: no case arm for skill '${{ matrix.skill }}'" >&2
+              exit 1
+              ;;
+          esac
+
+      # Every heredoc here writes straight to a file rather than through
+      # $(cat <<'EOF' ... EOF) into a variable: macOS's system bash (3.2)
+      # mis-parses a quoted-delimiter heredoc nested inside a command
+      # substitution once its body's own apostrophe count makes the
+      # substitution's internal quote-balance tracking go wrong — confirmed
+      # by reproducing it locally against this exact prose with macOS's
+      # /bin/bash. A heredoc redirected straight to a file never enters that
+      # code path.
+      #
+      # shared-answers.txt covers Steps 1/4/5/8, which are identical
+      # regardless of which skill or adapter this cell exercises (Step 8's
+      # answer is a no-op for codex, whose own Step 8 text self-skips — see
+      # codex/bootstrap-prompt.md). Each skill picks a different Step 2
+      # adapter and a matching Step 3 answer, appended below.
+      - name: Run the bootstrap headlessly (Steps 1-8)
+        env:
+          BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+          # Each CLI is itself an LLM-backed agent and needs its own
+          # credentials to run at all — independent of which inner adapter
+          # the scaffolded Tom/Jerry agents end up using.
+          ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+          # codex exec's own auth resolution reads CODEX_API_KEY, never
+          # OPENAI_API_KEY (openai/codex codex-rs/login/src/auth/manager.rs).
+          CODEX_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.E2E_CURSOR_API_KEY }}
+        run: |
+          cat <<'PROMPT' > shared-answers.txt
+          Read ${{ matrix.skill }}/bootstrap-prompt.md in this checkout and
+          execute its Steps 1 through 8 only — do NOT run Steps 9 or 10; CI
+          launches and verifies the agents itself afterwards. This is a
+          headless run — never wait for a chat reply to any question the
+          file describes (including any AskUserQuestion call); every answer
+          is pre-supplied here:
+
+          - Step 1: the Band user API key is in the BAND_USER_API_KEY
+            environment variable (never print or persist it). BAND_REST_URL
+            and BAND_WS_URL are in the environment too.
+          - Step 4: output directory = ./ci-out
+          - Step 5: use the local scripts/register-agent.sh from this
+            checkout instead of fetching from main — this run must test THIS
+            branch's version. Name the two agents "Tom-${{ matrix.skill }}-${{ matrix.os }}"
+            and "Jerry-${{ matrix.skill }}-${{ matrix.os }}" instead of the
+            prompt file's literal "Tom"/"Jerry" — this cell runs in parallel
+            with the others on the same test account, and the platform
+            enforces unique agent names per owner.
+          - Step 8 (when the file doesn't skip it for the chosen adapter):
+            leave the .env line as "ANTHROPIC_API_KEY=" (blank); the process
+            environment supplies the real value.
+          PROMPT
+
+          # Each arm writes delta.txt and defines `invoke`; only the winning
+          # arm's `invoke` survives to be called below, once ci-prompt.txt
+          # exists.
+          case "${{ matrix.skill }}" in
+            claude)
+              cat <<'DELTA' > delta.txt
+          - Step 2: adapter = claude_sdk.
+          - Step 3: auth answer = "Use my ANTHROPIC_API_KEY" (it is already
+            exported in this job's environment).
+          DELTA
+              invoke() {
+                claude -p "$(cat ci-prompt.txt)" \
+                  --permission-mode dontAsk \
+                  --allowedTools "Bash,Read,Edit,Write,Glob,Grep" \
+                  --output-format text
+              }
+              ;;
+            codex)
+              cat <<'DELTA' > delta.txt
+          - Step 2: pick Step 2a option 4, "OpenAI Codex" — sets
+            adapter = codex.
+          - Step 3: the Codex CLI auth answer is "Yes, logged in" — the
+            CODEX_API_KEY environment variable is already exported in this
+            job's environment, which authenticates "codex exec" directly;
+            no interactive "codex login" is needed or possible here.
+          DELTA
+              invoke() {
+                codex exec --sandbox danger-full-access --skip-git-repo-check \
+                  "$(cat ci-prompt.txt)"
+              }
+              ;;
+            cursor)
+              cat <<'DELTA' > delta.txt
+          - Step 2: pick Step 2a option 2, "Direct Anthropic SDK" —
+            sets adapter = anthropic.
+          - Step 3: skipped — the anthropic adapter needs no LLM-auth
+            confirmation question.
+          DELTA
+              invoke() {
+                agent -p --force --output-format text "$(cat ci-prompt.txt)"
+              }
+              ;;
+            *)
+              echo "Run the bootstrap: no case arm for skill '${{ matrix.skill }}'" >&2
+              exit 1
+              ;;
+          esac
+
+          printf '%s\n\n%s\n\nStop and exit non-zero the moment any step fails.\n' \
+            "$(cat shared-answers.txt)" "$(cat delta.txt)" > ci-prompt.txt
+
+          invoke
+
+      # Launched here, not by the model: the launch shape must be
+      # deterministic, and every skill's own prompt forbids nohup for
+      # interactive runs while CI needs processes that outlive the step.
+      - name: Launch the agents
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+          CODEX_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
+        run: |
+          if [[ "${{ matrix.skill }}" == "codex" ]]; then
+            # band.adapters.codex spawns `codex app-server`, not `codex
+            # exec` — app-server hardcodes enable_codex_api_key_env: false
+            # (codex-rs/app-server/src/lib.rs), so it never reads
+            # CODEX_API_KEY/OPENAI_API_KEY from the environment. It only
+            # reads a persisted auth.json; `--api-key <value>` is deprecated
+            # and rejected, so the key has to go through stdin.
+            printf '%s' "$CODEX_API_KEY" | codex login --with-api-key
+          fi
+
+          cd ci-out
+          uv sync
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            # Git Bash's nohup does not keep a child process alive reliably on
+            # the Windows runner. Launch uv.exe through PowerShell instead;
+            # this is only CI plumbing — the interactive flow uses each
+            # skill's own background-task mechanism.
+            powershell.exe -NoProfile -NonInteractive -Command \
+              "Start-Process -FilePath (Get-Command uv).Source -ArgumentList @('run', 'python', 'tom_agent.py') -RedirectStandardOutput 'tom.stdout.log' -RedirectStandardError 'tom.stderr.log'"
+            powershell.exe -NoProfile -NonInteractive -Command \
+              "Start-Process -FilePath (Get-Command uv).Source -ArgumentList @('run', 'python', 'jerry_agent.py') -RedirectStandardOutput 'jerry.stdout.log' -RedirectStandardError 'jerry.stderr.log'"
+          else
+            nohup uv run python tom_agent.py > tom.log 2>&1 &
+            nohup uv run python jerry_agent.py > jerry.log 2>&1 &
+          fi
+          for _ in $(seq 1 30); do
+            if grep -qF "Agent started: $TOM_NAME" tom*.log 2>/dev/null &&
+               grep -qF "Agent started: $JERRY_NAME" jerry*.log 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          grep -qF "Agent started: $TOM_NAME" tom*.log
+          grep -qF "Agent started: $JERRY_NAME" jerry*.log
+
+      # The pass/fail gate is deliberately NOT the model's own report of
+      # success: a connected-but-mute agent passes the startup grep above and
+      # fails only here, on a real reply.
+      - name: Independently verify Tom replies
+        env:
+          BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+        run: |
+          TOM_ID=$(awk '/^tom_agent:/{f=1;next} f&&/agent_id:/{gsub(/"/,"",$2);print $2;exit}' ci-out/agent_config.yaml)
+          test -n "$TOM_ID"
+          cd ci-out && VERIFY_AGENT_ID="$TOM_ID" VERIFY_AGENT_NAME="$TOM_NAME" \
+            uv run python ../scripts/verify_agent_reply.py
+
+      - name: Upload agent logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-logs-${{ matrix.skill }}-${{ matrix.os }}
+          path: ci-out/*.log
+          if-no-files-found: ignore
+
+      - name: Teardown
+        if: always()
+        # Best-effort hygiene (frees the name for the next run), not part of
+        # the smoke test's pass/fail contract — a transient reap failure
+        # must never overturn a cell whose actual verification already
+        # passed. reap-tom-jerry.sh still exits non-zero on a real failure,
+        # which shows up as this step's own (non-blocking) status.
+        continue-on-error: true
+        env:
+          BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
+        run: |
+          # Match the script name — the processes' argv is "python
+          # tom_agent.py" (cwd never appears in it). pkill doesn't exist in
+          # Windows Git Bash; the runner VM teardown kills the processes
+          # there, and || true covers both that and no-match.
+          pkill -f 'tom_agent\.py' || true
+          pkill -f 'jerry_agent\.py' || true
+          .github/workflows/scripts/reap-tom-jerry.sh "$TOM_NAME" "$JERRY_NAME"

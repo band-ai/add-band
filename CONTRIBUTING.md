@@ -53,6 +53,24 @@ new harness up automatically. Verify with:
 cd pa-conformance && E2E_TESTS_ENABLED=true PA_HARNESSES=<name> uv run pytest tests -v
 ```
 
+## Coding-agent skills: onboarding smoke is part of the integration
+
+A coding-agent skill (`claude`, `codex`, `cursor`, …) that bootstraps Tom & Jerry
+from a pasted `bootstrap-prompt.md` — instead of a `bootstrap.sh` — isn't done when
+it works once by hand either. Adding it to `STUB_ONLY` in
+[`scripts/check.py`](scripts/check.py) (already required — these skills have no
+`bootstrap.sh` for `check.py` to validate) is also what gives it a matrix cell in
+[`.github/workflows/bootstrap-skill-smoke.yml`](.github/workflows/bootstrap-skill-smoke.yml):
+that workflow's `compute-matrix` job builds `matrix.skill` directly from
+`STUB_ONLY`, so there's no second list to keep in sync or drift-check.
+
+What that matrix cell does *not* get for free: the workflow's `Install CLI` step
+and its `Run the bootstrap headlessly` step each have a `case "${{ matrix.skill
+}}"` block with one arm per skill (installing the CLI, then answering its
+Step 2/3 adapter questions and invoking it headlessly). A new skill needs a
+matching arm added to each — the workflow fails loudly, naming the missing
+skill, if a matrix cell has no arm, but adding one is still a manual step.
+
 ## The one rule the web app relies on
 
 The web app hands the user a Band **API key** to copy and a `curl … | bash`
