@@ -129,7 +129,7 @@ BAND_AGENT_ID=<uuid>
 BAND_AGENT_API_KEY=<agent-key>
 ```
 
-Run via the shell (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_AGENT_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
+Run via the shell (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_AGENT_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use). Run the commands below through Git Bash directly, exactly as written — never by writing a Python (or other language) wrapper that re-implements them and piping it through PowerShell. Git Bash is present on the Windows runner and understands `export`/`eval` natively:
 
 ```bash
 REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/register-agent.sh"
