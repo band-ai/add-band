@@ -211,6 +211,8 @@ Fetch these three files from `band-ai/band-sdk-python` (always `main`) using `cu
    ```
    (Keep the existing `logger = logging.getLogger(__name__)` line.) If `import logging` is already present in the file (as it is in the `codex` adapter examples), omit the duplicate — only insert `logging.basicConfig(level=logging.INFO)` where `setup_logging()` was.
 
+   The `codex` adapter examples call `band`'s own `configure_logging(...)` directly — there is no `setup_logging()` to find — and pass `style="json"`, which needs the optional `python-json-logger` dependency that this project doesn't install. Delete the `style="json",` line from that `configure_logging(...)` call so it falls back to the dependency-free default style; leave the rest of the call (`level`, `extra_loggers`, etc.) as-is.
+
 5. **Replace the module docstring.** Replace the entire top-of-file `"""..."""` block (the one immediately after `from __future__ import annotations`, if present, or otherwise the first triple-quoted string in the file) with a single-line docstring:
 
    - Tom file: `"""Tom the cat agent (<ADAPTER>)."""`
