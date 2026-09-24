@@ -325,6 +325,12 @@ jobs:
 
       - name: Teardown
         if: always()
+        # Best-effort hygiene (frees the name for the next run), not part of
+        # the smoke test's pass/fail contract — a transient reap failure
+        # must never overturn a cell whose actual verification already
+        # passed. reap-tom-jerry.sh still exits non-zero on a real failure,
+        # which shows up as this step's own (non-blocking) status.
+        continue-on-error: true
         env:
           BAND_USER_API_KEY: ${{ secrets.E2E_BAND_API_KEY_USER }}
         run: |
