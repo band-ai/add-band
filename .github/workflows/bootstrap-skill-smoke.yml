@@ -1,5 +1,5 @@
 # Live smoke for the Tom & Jerry bootstrap, across every coding-agent skill
-# (INT-1211 landed claude/claude_sdk; INT-1536 generalized to codex/cursor).
+# (INT-1211, INT-1536).
 #
 # Drives each skill's own CLI headlessly through <skill>/bootstrap-prompt.md
 # Steps 1-8 (provision + scaffold) against a test Band account, launches the
@@ -7,17 +7,15 @@
 # answers a real message — an agent that only connects its WebSocket is not a
 # pass. Runs the full skill x OS matrix in parallel and gates merges on each
 # cell — every cell registers its own Tom-<skill>-<os>/Jerry-<skill>-<os> pair
-# (INT-1266 introduced the per-os suffix; INT-1536 adds per-skill) so no two
-# cells collide on the platform's per-owner unique-name constraint.
+# (INT-1266, INT-1536) so no two cells collide on the platform's per-owner
+# unique-name constraint.
 name: bootstrap-skill-smoke
 
 on:
   pull_request:
     # Same-repo PRs only (fork PRs can't read the secrets; see the job `if`).
     paths:
-      - claude/bootstrap-prompt.md
-      - codex/bootstrap-prompt.md
-      - cursor/bootstrap-prompt.md
+      - "*/bootstrap-prompt.md"
       - scripts/register-agent.sh
       - scripts/verify_agent_reply.py
       - .github/workflows/bootstrap-skill-smoke.yml
@@ -65,10 +63,10 @@ jobs:
     strategy:
       # No max-parallel: every cell's TOM_NAME/JERRY_NAME below is suffixed
       # with matrix.skill-matrix.os, so no two cells ever race on the
-      # platform's per-owner unique-name constraint (INT-1266, extended by
-      # INT-1536). The job-level concurrency group above still serializes
-      # different *runs* of this workflow — that's a separate collision (two
-      # PRs' CI at once) this per-cell suffix doesn't address.
+      # platform's per-owner unique-name constraint (INT-1266, INT-1536).
+      # The job-level concurrency group above still serializes different
+      # *runs* of this workflow — that's a separate collision (two PRs' CI
+      # at once) this per-cell suffix doesn't address.
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -87,8 +85,8 @@ jobs:
       BAND_REST_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
       BAND_BASE_URL: ${{ secrets.E2E_BAND_REST_URL || 'https://app.band.ai' }}
       BAND_WS_URL: ${{ secrets.E2E_BAND_WS_URL || 'wss://app.band.ai/api/v1/socket/websocket' }}
-      # Per-cell agent names (INT-1266, extended per-skill for INT-1536) —
-      # see the strategy comment above.
+      # Per-cell agent names (INT-1266, INT-1536) — see the strategy comment
+      # above.
       TOM_NAME: Tom-${{ matrix.skill }}-${{ matrix.os }}
       JERRY_NAME: Jerry-${{ matrix.skill }}-${{ matrix.os }}
     steps:
@@ -197,6 +195,8 @@ jobs:
           PROMPT
           )
 
+          # Each arm sets DELTA and defines `invoke`; only the winning arm's
+          # `invoke` survives to be called below, once ci-prompt.txt exists.
           case "${{ matrix.skill }}" in
             claude)
               DELTA=$(cat <<'DELTA'
@@ -205,6 +205,12 @@ jobs:
             exported in this job's environment).
           DELTA
               )
+              invoke() {
+                claude -p "$(cat ci-prompt.txt)" \
+                  --permission-mode dontAsk \
+                  --allowedTools "Bash,Read,Edit,Write,Glob,Grep" \
+                  --output-format text
+              }
               ;;
             codex)
               DELTA=$(cat <<'DELTA'
@@ -216,6 +222,10 @@ jobs:
             no interactive "codex login" is needed or possible here.
           DELTA
               )
+              invoke() {
+                codex exec --sandbox danger-full-access --skip-git-repo-check \
+                  "$(cat ci-prompt.txt)"
+              }
               ;;
             cursor)
               DELTA=$(cat <<'DELTA'
@@ -225,9 +235,12 @@ jobs:
             confirmation question.
           DELTA
               )
+              invoke() {
+                agent -p --force --output-format text "$(cat ci-prompt.txt)"
+              }
               ;;
             *)
-              echo "Run the bootstrap: no prompt-delta case arm for skill '${{ matrix.skill }}'" >&2
+              echo "Run the bootstrap: no case arm for skill '${{ matrix.skill }}'" >&2
               exit 1
               ;;
           esac
@@ -235,25 +248,7 @@ jobs:
           printf '%s\n\n%s\n\nStop and exit non-zero the moment any step fails.\n' \
             "$SHARED_ANSWERS" "$DELTA" > ci-prompt.txt
 
-          case "${{ matrix.skill }}" in
-            claude)
-              claude -p "$(cat ci-prompt.txt)" \
-                --permission-mode dontAsk \
-                --allowedTools "Bash,Read,Edit,Write,Glob,Grep" \
-                --output-format text
-              ;;
-            codex)
-              codex exec --sandbox danger-full-access --skip-git-repo-check \
-                "$(cat ci-prompt.txt)"
-              ;;
-            cursor)
-              agent -p --force --output-format text "$(cat ci-prompt.txt)"
-              ;;
-            *)
-              echo "Run the bootstrap: no invoke case arm for skill '${{ matrix.skill }}'" >&2
-              exit 1
-              ;;
-          esac
+          invoke
 
       # Launched here, not by the model: the launch shape must be
       # deterministic, and every skill's own prompt forbids nohup for
