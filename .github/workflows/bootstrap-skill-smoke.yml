@@ -266,10 +266,18 @@ jobs:
       - name: Launch the agents
         env:
           ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
-          # The codex adapter's spawned CLI subprocess inherits this step's
-          # env (band.adapters.codex's codex_env defaults to None).
           CODEX_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
         run: |
+          if [[ "${{ matrix.skill }}" == "codex" ]]; then
+            # band.adapters.codex spawns `codex app-server`, not `codex
+            # exec` — app-server hardcodes enable_codex_api_key_env: false
+            # (codex-rs/app-server/src/lib.rs), so it never reads
+            # CODEX_API_KEY/OPENAI_API_KEY from the environment. It only
+            # reads a persisted auth.json; `--api-key <value>` is deprecated
+            # and rejected, so the key has to go through stdin.
+            printf '%s' "$CODEX_API_KEY" | codex login --with-api-key
+          fi
+
           cd ci-out
           uv sync
           if [[ "$RUNNER_OS" == "Windows" ]]; then
