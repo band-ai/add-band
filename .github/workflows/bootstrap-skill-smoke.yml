@@ -96,11 +96,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # Only claude and codex install their CLI via npm; cursor installs via
-      # curl/irm and always drives the anthropic adapter here, so it never
-      # touches Node.js.
+      # Only the npm-installed CLIs need Node.js. Allowlisted (not "!=
+      # cursor") so a future non-npm skill defaults to skipping this step
+      # without an edit here.
       - uses: actions/setup-node@v4
-        if: matrix.skill != 'cursor'
+        if: contains(fromJson('["claude", "codex"]'), matrix.skill)
         with:
           node-version: 20
 
