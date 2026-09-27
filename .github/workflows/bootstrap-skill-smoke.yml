@@ -141,10 +141,6 @@ jobs:
               if [[ "$RUNNER_OS" == "Windows" ]]; then
                 powershell.exe -NoProfile -NonInteractive -Command \
                   "irm 'https://cursor.com/install?win32=true' | iex"
-                # The installer's own PATH update is a registry write
-                # ("User" scope) that later steps' fresh shells don't see;
-                # only $GITHUB_PATH propagates across steps.
-                echo "$LOCALAPPDATA\cursor-agent" >> "$GITHUB_PATH"
               else
                 curl https://cursor.com/install -fsS | bash
                 echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
@@ -246,7 +242,15 @@ jobs:
             confirmation question.
           DELTA
               invoke() {
-                agent -p --force --output-format text "$(cat ci-prompt.txt)"
+                if [[ "$RUNNER_OS" == "Windows" ]]; then
+                  # The native installer provides a PowerShell launcher.
+                  # PowerShell expands these variables after Bash passes the command through.
+                  # shellcheck disable=SC2016
+                  powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \
+                    '$ErrorActionPreference = "Stop"; $prompt = Get-Content -LiteralPath ci-prompt.txt -Raw -Encoding UTF8; & "$env:LOCALAPPDATA\cursor-agent\cursor-agent.ps1" -p --force --output-format text $prompt; exit $LASTEXITCODE'
+                else
+                  agent -p --force --output-format text "$(cat ci-prompt.txt)"
+                fi
               }
               ;;
             *)
