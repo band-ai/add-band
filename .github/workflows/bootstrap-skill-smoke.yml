@@ -178,6 +178,7 @@ jobs:
           CODEX_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
           CURSOR_API_KEY: ${{ secrets.E2E_CURSOR_API_KEY }}
+          CURSOR_MODEL: composer-2.5
         run: |
           cat <<'PROMPT' > shared-answers.txt
           Read ${{ matrix.skill }}/bootstrap-prompt.md in this checkout and
@@ -247,9 +248,9 @@ jobs:
                   # PowerShell expands these variables after Bash passes the command through.
                   # shellcheck disable=SC2016
                   powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \
-                    '$ErrorActionPreference = "Stop"; $prompt = Get-Content -LiteralPath ci-prompt.txt -Raw -Encoding UTF8; & "$env:LOCALAPPDATA\cursor-agent\cursor-agent.ps1" -p --force --output-format text $prompt; exit $LASTEXITCODE'
+                    '$ErrorActionPreference = "Stop"; $prompt = Get-Content -LiteralPath ci-prompt.txt -Raw -Encoding UTF8; & "$env:LOCALAPPDATA\cursor-agent\cursor-agent.ps1" -p --force --output-format text --model $env:CURSOR_MODEL $prompt; exit $LASTEXITCODE'
                 else
-                  agent -p --force --output-format text "$(cat ci-prompt.txt)"
+                  agent -p --force --output-format text --model "$CURSOR_MODEL" "$(cat ci-prompt.txt)"
                 fi
               }
               ;;
