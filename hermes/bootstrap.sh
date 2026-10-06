@@ -44,16 +44,19 @@ command -v git >/dev/null || { echo "install git first"; exit 1; }
 
 # Get your Band API key: paste it at the prompt (pre-set BAND_USER_API_KEY or
 # BAND_API_KEY to skip). BAND_USER_API_KEY wins when both are set — a stale
-# agent-scoped BAND_API_KEY must not hijack the user-scoped key.
-BAND_API_KEY="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
-if [ -z "${BAND_API_KEY:-}" ]; then
-  [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_API_KEY and re-run" >&2; exit 1; }
+# agent-scoped BAND_API_KEY must not hijack the user-scoped key. The key is held
+# in an unexported shell variable and both names leave the environment at once, so
+# no child process (installer, package builds, `hermes chat`) inherits it; only the
+# registration helper gets it, scoped to that one command.
+band_user_key="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
+unset BAND_USER_API_KEY BAND_API_KEY
+if [ -z "$band_user_key" ]; then
+  [ -r /dev/tty ] || { echo "no terminal for the API key prompt; set BAND_USER_API_KEY and re-run" >&2; exit 1; }
   printf 'Paste your Band API key: ' >/dev/tty
-  IFS= read -r -s BAND_API_KEY </dev/tty
+  IFS= read -r -s band_user_key </dev/tty
   printf '\n' >/dev/tty
 fi
-[ -n "${BAND_API_KEY:-}" ] || { echo "Band API key required" >&2; exit 1; }
-export BAND_API_KEY
+[ -n "$band_user_key" ] || { echo "Band API key required" >&2; exit 1; }
 
 # Install the band platform as a Hermes DIRECTORY plugin via the repo's
 # installer. Everything lands under $HERMES_HOME (default ~/.hermes): plugin
@@ -65,12 +68,17 @@ export BAND_API_KEY
 # also runs `hermes plugins enable band` (directory plugins are CLI-native, no
 # config fallback needed).
 hermes_home="${HERMES_HOME:-$HOME/.hermes}"
+# BAND_HERMES_REF may be a branch, a tag, or a full 40-character commit SHA:
+# `git clone --branch` rejects SHAs, while a fetch of the single ref accepts all three.
 BAND_HERMES_REF="${BAND_HERMES_REF:-main}"
 clone_dir="$(mktemp -d)"
 trap 'rm -rf "$clone_dir"' EXIT
-git clone --quiet --depth 1 --branch "$BAND_HERMES_REF" \
-  https://github.com/band-ai/hermes-band-platform "$clone_dir/hermes-band-platform"
-"$clone_dir/hermes-band-platform/install.sh"
+src_dir="$clone_dir/hermes-band-platform"
+git init --quiet "$src_dir"
+git -C "$src_dir" fetch --quiet --depth 1 https://github.com/band-ai/hermes-band-platform "$BAND_HERMES_REF" \
+  || { echo "can't fetch BAND_HERMES_REF=$BAND_HERMES_REF (use a branch, a tag, or a full 40-character commit SHA)" >&2; exit 1; }
+git -C "$src_dir" -c advice.detachedHead=false checkout --quiet FETCH_HEAD
+"$src_dir/install.sh"
 
 # Band agent names must be unique per account, so a bare default collides on a
 # second run (or with anyone else's "Hermes Agent") as "name has been taken".
@@ -107,13 +115,18 @@ else
   # description default too so the helper doesn't drop into its /dev/tty prompt.
   : "${BAND_AGENT_DESCRIPTION:=Hermes agent on Band}"
   export BAND_AGENT_DESCRIPTION
-  # The helper reads BAND_API_KEY from the env (never argv) and prints only the
-  # agent-scoped BAND_AGENT_ID + BAND_AGENT_API_KEY — never the user key.
-  creds="$(bash "$skill_dir/scripts/register-agent.sh")" \
+  # The helper reads the user key from BAND_API_KEY, set for this one command only
+  # (never argv), and prints only the agent-scoped BAND_AGENT_ID +
+  # BAND_AGENT_API_KEY — never the user key.
+  creds="$(BAND_API_KEY="$band_user_key" bash "$skill_dir/scripts/register-agent.sh")" \
     || { echo "Band registration failed (see the error above)." >&2; exit 1; }
   eval "$creds"
   [ -n "${BAND_AGENT_ID:-}" ] && [ -n "${BAND_AGENT_API_KEY:-}" ] \
     || { echo "registration returned no agent credentials" >&2; exit 1; }
+  # The agent lives on the host it was registered against; the plugin reads
+  # BAND_BASE_URL at runtime and defaults to app.band.ai, so persist any other host.
+  band_base_url="${BAND_BASE_URL:-https://app.band.ai}"; band_base_url="${band_base_url%/}"
+  [ "$band_base_url" = "https://app.band.ai" ] && band_base_url=""
   # Persisting runs hermes_cli, which lives in the gateway's interpreter — the same
   # resolution the installer uses (HERMES_PY overrides).
   if [ -z "${HERMES_PY:-}" ]; then
@@ -129,15 +142,18 @@ else
   # Persist agent-scoped creds via Hermes's env writer (managed-scope/denylist/ASCII
   # guards live there). The agent key is stored under BAND_API_KEY — the name the
   # band plugin reads at runtime — and passed via the env, never argv.
-  BAND_AGENT_ID="$BAND_AGENT_ID" BAND_AGENT_API_KEY="$BAND_AGENT_API_KEY" "$HERMES_PY" <<'PY'
+  BAND_AGENT_ID="$BAND_AGENT_ID" BAND_AGENT_API_KEY="$BAND_AGENT_API_KEY" \
+    BAND_PERSIST_BASE_URL="$band_base_url" "$HERMES_PY" <<'PY'
 import os
 from hermes_cli.config import save_env_value
 save_env_value("BAND_AGENT_ID", os.environ["BAND_AGENT_ID"])
 save_env_value("BAND_API_KEY", os.environ["BAND_AGENT_API_KEY"])
+if os.environ["BAND_PERSIST_BASE_URL"]:
+    save_env_value("BAND_BASE_URL", os.environ["BAND_PERSIST_BASE_URL"])
 PY
 fi
-# The user key (and the agent key we just persisted) must not linger into handoff.
-unset BAND_API_KEY BAND_AGENT_API_KEY
+# Neither the user key nor the agent key just persisted may reach the agent session.
+unset band_user_key BAND_USER_API_KEY BAND_API_KEY BAND_AGENT_API_KEY
 
 # Hand off to the agent: the add-band skill restarts the gateway, wires Band in
 # as a comms channel, bootstraps the hub, and sends you the agent's first

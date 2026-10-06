@@ -19,7 +19,10 @@
 #            BAND_AGENT_DESCRIPTION (set either to skip its prompt).
 set -euo pipefail
 
-name_default="MyOpenClawAgent"
+# Agent names are unique per account, so a fixed default fails with HTTP 422
+# ("name has been taken") on the second registration. Host + timestamp keeps the
+# default unique per run and inside Band's name rules (3-100 chars, no @ or /).
+name_default="OpenClaw Agent ($(hostname -s 2>/dev/null || echo local) $(date +%Y%m%d-%H%M%S))"
 desc_default="OpenClaw agent on Band"
 
 usage() {
@@ -34,8 +37,8 @@ Options:
   -d, --description DESC     agent description (prompted if omitted)
   -h, --help                 show this help and exit
 
-The Band API key is read from \$BAND_API_KEY (or \$BAND_USER_API_KEY), or
-pasted at the prompt.
+The Band API key is read from \$BAND_USER_API_KEY or \$BAND_API_KEY
+(\$BAND_USER_API_KEY wins when both are set), or pasted at the prompt.
 USAGE
 }
 
@@ -100,19 +103,30 @@ desc=${desc:-$desc_default}
 
 # Get your Band API key: paste it at the prompt (pre-set BAND_USER_API_KEY or
 # BAND_API_KEY to skip). BAND_USER_API_KEY wins when both are set — a stale
-# agent-scoped BAND_API_KEY must not hijack the user-scoped key.
-BAND_API_KEY="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
-if [ -z "${BAND_API_KEY:-}" ]; then
-  [ -r /dev/tty ] || { echo "band: no terminal here to ask on — set BAND_API_KEY and run again." >&2; exit 1; }
+# agent-scoped BAND_API_KEY must not hijack the user-scoped key. The key is held
+# in an unexported shell variable and both names leave the environment at once, so
+# no openclaw process (plugin install, gateway) inherits it; only curl's stdin
+# config below sees it.
+band_user_key="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
+unset BAND_USER_API_KEY BAND_API_KEY
+if [ -z "$band_user_key" ]; then
+  [ -r /dev/tty ] || { echo "band: no terminal here to ask on — set BAND_USER_API_KEY and run again." >&2; exit 1; }
   printf 'Paste your Band API key (hidden as you type): ' >/dev/tty
-  IFS= read -r -s BAND_API_KEY </dev/tty
+  IFS= read -r -s band_user_key </dev/tty
   printf '\n' >/dev/tty
 fi
-[ -n "${BAND_API_KEY:-}" ] || { echo "band: a Band API key (with agent-create scope) is required to continue." >&2; exit 1; }
+[ -n "$band_user_key" ] || { echo "band: a Band API key (with agent-create scope) is required to continue." >&2; exit 1; }
 
 # Install the channel plugin before minting the agent, so a failed install
-# doesn't leave an orphaned Band agent behind.
-openclaw plugins install @band-ai/openclaw-channel-band --force
+# doesn't leave an orphaned Band agent behind. OpenClaw releases that gate plugin
+# capabilities refuse a non-interactive install without --accept-capabilities;
+# older releases in the plugin's peer range reject that flag, so pass it only when
+# this CLI's own help offers it. (Help is captured, not piped into `grep -q`: an
+# early grep exit would SIGPIPE openclaw and fail the pipeline under pipefail.)
+install_help=$(openclaw plugins install --help 2>&1 || true)
+consent_flag=""
+case "$install_help" in *--accept-capabilities*) consent_flag=--accept-capabilities ;; esac
+openclaw plugins install @band-ai/openclaw-channel-band --force ${consent_flag:+"$consent_flag"}
 
 # Register a Band agent. The API key goes through curl's --config (-K -) on
 # stdin, so it never appears in any process's argv (`ps`).
@@ -121,10 +135,10 @@ resp=$(curl -sS -X POST "$base/api/v1/me/agents/register" \
   -H "Content-Type: application/json" \
   -d "$(printf '{"agent":{"name":"%s","description":"%s"}}' "$(json_escape "$name")" "$(json_escape "$desc")")" \
   -w $'\n%{http_code}' -K - <<EOF
-header = "X-API-Key: $BAND_API_KEY"
+header = "X-API-Key: $band_user_key"
 EOF
 ) || true
-unset BAND_API_KEY
+unset band_user_key
 
 code=${resp##*$'\n'}; out=${resp%$'\n'*}
 case "$code" in
@@ -147,11 +161,11 @@ esac
 openclaw channels add --channel openclaw-channel-band --account "$AGENT_ID" --token "$AGENT_KEY"
 openclaw config set "channels.openclaw-channel-band.accounts.$AGENT_ID.agentId" "$AGENT_ID"
 
-# The plugin's own config schema declares hardcoded prod defaults for wsUrl/restUrl
-# (wss://app.thenvoi.com, https://app.thenvoi.com). Schema defaulting fills those
-# into the account object before the plugin's own BAND_WS_URL/BAND_REST_URL env-var
-# fallback ever runs, so exporting those env vars alone silently has no effect —
-# set the account fields explicitly, derived from the same $base used to register.
+# The plugin's config schema declares app.band.ai defaults for wsUrl/restUrl.
+# Schema defaulting fills those into the account object before the plugin's own
+# BAND_WS_URL/BAND_REST_URL env-var fallback ever runs, so exporting those env
+# vars alone silently has no effect — set the account fields explicitly, derived
+# from the same $base used to register.
 case "$base" in
   https://*) default_ws_url="wss://${base#https://}/api/v1/socket/websocket" ;;
   http://*) default_ws_url="ws://${base#http://}/api/v1/socket/websocket" ;;
@@ -165,5 +179,31 @@ openclaw config set "channels.openclaw-channel-band.accounts.$AGENT_ID.restUrl" 
 # if unset, so a host that already ran onboard keeps its own choice.
 openclaw config get gateway.mode >/dev/null 2>&1 || openclaw config set gateway.mode local
 
-openclaw gateway restart
+# Restart the gateway so it loads the plugin and the new account. A host with no
+# installed gateway service (fresh install, container) has nothing to restart:
+# newer CLIs report "Gateway service disabled." and exit non-zero. Registration
+# and config are already done by then, so that outcome ends with how to start the
+# gateway instead of an error; any other restart failure stays fatal. The service
+# state comes from `gateway status --json`; if it can't be read, the restart's own
+# exit status stands.
+gateway_service_missing() {
+  local status loaded
+  status=$(openclaw gateway status --json --no-probe 2>/dev/null) || return 1
+  case "$json_parser" in
+    jq) loaded=$(printf '%s' "$status" | jq -r '.service.loaded' 2>/dev/null) || return 1 ;;
+    python3) loaded=$(printf '%s' "$status" | python3 -c \
+      'import sys, json; print(json.dumps(json.load(sys.stdin)["service"]["loaded"]))' 2>/dev/null) || return 1 ;;
+  esac
+  [ "$loaded" = false ]
+}
+restart_rc=0
+openclaw gateway restart || restart_rc=$?
+gateway_note=""
+if [ "$restart_rc" -ne 0 ]; then
+  gateway_service_missing || exit "$restart_rc"
+  gateway_note="No gateway service is installed, so nothing was restarted. Start the gateway to bring the agent online:
+  openclaw gateway install   # install and start it as a background service
+  openclaw gateway run       # or run it in the foreground"
+fi
 echo "Registered agent $AGENT_ID. Channel wired; the openclaw CLI stored its credentials."
+[ -z "$gateway_note" ] || printf '%s\n' "$gateway_note"

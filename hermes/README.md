@@ -16,8 +16,8 @@ access control — only messages Band delivers reach the agent.
 
 Run on the host where your Hermes gateway runs. The Band web app gives you a
 `curl … | bash` one-liner and your Band API key; run it and paste the key when the
-script prompts. The script ([`bootstrap.sh`](bootstrap.sh)) does only the two things
-bash is uniquely placed to do, then hands off to the agent:
+script prompts. The script ([`bootstrap.sh`](bootstrap.sh)) does three things: the
+two bash is uniquely placed to do, then the hand-off to the agent:
 
 1. **Install** the `band` plugin (which ships the `add-band` skill) into the
    gateway's own Python from the configured Git ref.
@@ -76,8 +76,9 @@ Full end-to-end guide: [`TESTING.md`](TESTING.md).
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `BAND_API_KEY` | ✅ | Your Band API key — paste it at the prompt. The bootstrap registers an agent and **replaces** this in the gateway `.env` with the agent-scoped key of the same name, then drops the broad shell value (it never reaches the LLM). For a pre-created agent, set its agent key here directly. |
+| `BAND_API_KEY` | ✅ | Your Band API key — paste it at the prompt, or pre-set it here or in `BAND_USER_API_KEY` (which wins when both are set). The bootstrap registers an agent and **replaces** this in the gateway `.env` with the agent-scoped key of the same name, then drops the broad shell value (it never reaches the LLM). For a pre-created agent, set its agent key here directly. |
 | `BAND_AGENT_ID` | set by registration | Band agent ID (UUID). Written by the bootstrap; set it yourself only for a pre-created agent. |
+| `BAND_BASE_URL` | no | Band host to register against (default `https://app.band.ai`). The bootstrap saves a non-default value to the gateway `.env`, so the plugin connects to the host the agent lives on. |
 
 Full configuration (hub pinning, allowlists, failover) is documented in the
 [plugin README](https://github.com/band-ai/hermes-band-platform#environment-variables).
