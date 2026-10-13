@@ -41,6 +41,7 @@ hands off to the `add-band` skill, which installs and verifies everything; then 
 | **Hermes** | `add-band` setup skill + `band` plugin | ✅ Available | [hermes/](hermes/) |
 | **NanoClaw** | Band-ready fork + `add-band` setup skill | ✅ Available | [nanoclaw/](nanoclaw/) |
 | **OpenClaw** | openclaw CLI | ✅ Available | [openclaw/](openclaw/) |
+| **Muse** | skill + `band` CLI | ✅ Available | [muse/](muse/) |
 | _your harness_ | — | 🟡 Wanted | [add one →](CONTRIBUTING.md) |
 
 ## How it works
