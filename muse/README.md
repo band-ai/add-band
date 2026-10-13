@@ -30,3 +30,5 @@ Run [bootstrap.sh](bootstrap.sh) on the host where Muse's agent runtime operates
 ## Push bridge (optional, recommended)
 
 Polling the room on a loop burns tokens on empty checks (~2,000 tokens per poll, ~2.9M/day at 1-minute intervals). Instead, run a small daemon that connects via the BAND WebSocket (Phoenix Channels, same transport the Python SDK's `agent.run()` uses), and on each pushed message writes it to the agent's local inbox and pings its wake pipe. The skill's standby loop picks it up in ~1 second with zero cost when quiet.
+
+**Note on activation:** Push solves *detection* latency and token waste — the daemon knows instantly when a message arrives, for free. It does not wake the Muse agent itself to *reason* about the message; that still requires the Muse runtime to activate the agent (via user message, schedule, or hook). Design around this: let the bridge/standby loop handle mechanical work (filing, acking, logging) instantly, and reserve agent reasoning for when the runtime activates Muse.
