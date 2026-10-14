@@ -1,0 +1,24 @@
+# Muse bridge for the PA conformance run.
+#
+# Unlike the other harnesses (persistent agent runtimes with gateways),
+# Muse is ephemeral. The "harness" is the push bridge daemon: it holds
+# a WebSocket open, writes inbound messages to the inbox, and exposes
+# send via the REST API. No model, no gateway, no conversation state.
+services:
+  bridge:
+    image: ${PA_MUSE_IMAGE:-pa-muse:local}
+    build:
+      context: .
+    environment:
+      - BAND_AGENT_ID=${BAND_AGENT_ID:?}
+      - BAND_API_KEY=${BAND_API_KEY:?}
+      - BAND_BASE_URL=${BAND_BASE_URL:-https://app.band.ai}
+      - BAND_INBOX_DIR=/data/inbox
+    volumes:
+      - ${PA_MUSE_HOME:?per-run state dir}:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import os; assert os.path.exists('/tmp/bridge-ready')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
