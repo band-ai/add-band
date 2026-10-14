@@ -1,0 +1,20 @@
+[Unit]
+Description=BAND Push Bridge for Muse
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/band-bridge
+Environment=BAND_INBOX_DIR=/home/ubuntu/band-bridge/inbox
+ExecStart=/home/ubuntu/band-bridge-venv/bin/python3 /home/ubuntu/band-bridge/bridge_daemon.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/ubuntu/band-bridge/logs/daemon.log
+StandardError=append:/home/ubuntu/band-bridge/logs/daemon.log
+
+# Credentials are read from ~/.config/muse-band/agent.creds (mode 600)
+# or BAND_AGENT_ID/BAND_API_KEY env vars
+
+[Install]
+WantedBy=multi-user.target

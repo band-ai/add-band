@@ -45,3 +45,15 @@ python3 bridge_daemon.py
 ```
 
 The daemon holds a WebSocket open via `band-sdk`, auto-subscribes to the agent's rooms, and on each new message writes to `BAND_INBOX_DIR` (default `~/shared/inbox/spark/`) and pings `BAND_WAKE_PIPE`. ~1s latency, zero polling cost.
+
+### Running as a service
+
+For persistent deployment, use the provided systemd unit:
+
+```bash
+sudo cp muse/band-bridge.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now band-bridge.service
+```
+
+The service reads credentials from `~/.config/muse-band/agent.creds` (written by bootstrap) or the `BAND_AGENT_ID`/`BAND_API_KEY` env vars. Logs go to `~/band-bridge/logs/daemon.log`. Restarts automatically on failure.
