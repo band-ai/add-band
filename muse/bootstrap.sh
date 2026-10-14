@@ -34,13 +34,12 @@ fi
 AGENT_DESC="${BAND_AGENT_DESCRIPTION:-Muse assistant on Band}"
 
 # >>> band:mini
-# Install the band CLI if missing.
+# Install the band CLI if missing (ships with the band-sdk pip package).
 if ! command -v band >/dev/null 2>&1; then
-  echo "Installing band CLI..."
-  # Pinned to the add-band repo's documented installer.
-  curl -fsSL https://raw.githubusercontent.com/band-ai/band-sdk-python/main/scripts/install-cli.sh | bash
+  echo "Installing band CLI via pip..."
+  pip install --quiet band-sdk || pip3 install --quiet band-sdk
 fi
-command -v band >/dev/null 2>&1 || { echo "band CLI install failed" >&2; exit 1; }
+command -v band >/dev/null 2>&1 || { echo "band CLI install failed (pip install band-sdk)" >&2; exit 1; }
 # <<< band:mini
 
 # Mint a Band agent from the API key.

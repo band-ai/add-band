@@ -56,20 +56,20 @@ class MuseHarness(Harness):
 
     def __init__(self, ctx: HarnessContext):
         super().__init__(ctx)
-        self._workdir = ctx.work_root / self.name
         self.stack = ComposeStack(
-            STACKS_DIR / "muse" / "compose.yaml",
-            project_name=f"pa-muse-{ctx.run_id}",
+            file=STACKS_DIR / "muse" / "compose.yaml",
+            project=f"pa-muse-{ctx.run_id}",
         )
 
     def up(self, identity: BandIdentity) -> None:
         """Start the bridge, wired to the injected Band agent identity."""
-        self._workdir.mkdir(parents=True, exist_ok=True)
-        # The compose file reads these from the environment
-        os.environ["BAND_AGENT_ID"] = identity.agent_id
-        os.environ["BAND_API_KEY"] = identity.api_key
-        os.environ["BAND_BASE_URL"] = self.ctx.band_base_url
-        os.environ["PA_MUSE_HOME"] = str(self._workdir)
+        # The compose file reads these from the stack env
+        self.stack.env.update({
+            "BAND_AGENT_ID": identity.agent_id,
+            "BAND_API_KEY": identity.api_key,
+            "BAND_BASE_URL": self.ctx.band_base_url,
+            "PA_MUSE_HOME": str(self.workdir),
+        })
         self.stack.up()
 
     def wait_ready(self) -> None:
@@ -90,6 +90,5 @@ class MuseHarness(Harness):
         try:
             self.stack.down()
         finally:
-            # Clean up the workdir
-            import shutil
-            shutil.rmtree(self._workdir, ignore_errors=True)
+            # workdir cleanup is handled by the base class
+            pass
