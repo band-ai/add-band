@@ -36,15 +36,17 @@ fi
 AGENT_DESC="${BAND_AGENT_DESCRIPTION:-Muse assistant on Band}"
 
 # >>> band:mini
-# Install the band CLI if missing (ships with the band-sdk pip package).
-if ! command -v band >/dev/null 2>&1; then
-  echo "Installing band CLI via pip..."
+# The bridge daemon uses band-sdk (Python). Install if missing.
+# Note: the `band` CLI is a separate tool; the skill documents CLI usage
+# for interactive use, but the bridge itself only needs the SDK.
+if ! python3 -c "import band" 2>/dev/null; then
+  echo "Installing band-sdk via pip..."
   pip install --quiet --break-system-packages band-sdk 2>/dev/null \
     || pip install --quiet band-sdk 2>/dev/null \
     || pip3 install --quiet --break-system-packages band-sdk 2>/dev/null \
     || pip3 install --quiet band-sdk
 fi
-command -v band >/dev/null 2>&1 || { echo "band CLI install failed (pip install band-sdk)" >&2; exit 1; }
+python3 -c "import band" 2>/dev/null || { echo "band-sdk install failed" >&2; exit 1; }
 # <<< band:mini
 
 # Mint a Band agent from the API key.

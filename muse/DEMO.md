@@ -65,7 +65,7 @@ The key: Muse never pretends to be you. It's always clear Muse is speaking, citi
 
 ## Honest Limitations
 
-- **Pull, not push.** Muse can't alert you proactively — you ask, it answers.
+- **Muse can't alert you proactively** — the bridge detects instantly via push, but Muse as an agent only reasons when activated. You ask, it answers.
 - **Summaries lose nuance.** For complex threads, read the room yourself.
 - **Interim bridge.** If BAND ships a mobile app, this becomes unnecessary. Until then, it's the fastest path from your phone to the room.
 

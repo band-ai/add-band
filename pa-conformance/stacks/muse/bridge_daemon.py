@@ -1,8 +1,4 @@
-"""BAND push bridge: WebSocket events -> local inbox + wake pipe. Send via REST. No polling.
-
-NOTE: This is a copy of muse/bridge_daemon.py plus the /tmp/bridge-ready
-touch for the conformance healthcheck. Keep in sync with the upstream file.
-"""
+"""BAND push bridge: WebSocket events -> local inbox + wake pipe. Send via REST. No polling."""
 import asyncio
 import json
 import logging
@@ -111,6 +107,8 @@ async def main() -> None:
     presence.on_room_event = on_message
     await presence.start()
     log.info("bridge live for agent %s", AGENT_ID[:8])
+    # Readiness signal for conformance healthcheck
+    Path("/tmp/bridge-ready").touch()
     await link.run_forever(install_signal_handlers=False)
 
 
@@ -121,16 +119,19 @@ async def cli_send(room_id: str, content: str) -> None:
         python bridge_daemon.py send <room> <content> <mentions.json>
     where mentions.json is [{"id": "<uuid>", "handle": "...", "name": "..."}].
     The API rejects mentions with empty/invalid UUIDs (HTTP 422).
+    Handle format is "owner/handle" (e.g. "vibhor15/spark") — the regex
+    below correctly captures the full handle including the slash.
     """
     import re
     mentions = []
     if len(sys.argv) >= 5:
         mentions = json.loads(Path(sys.argv[4]).read_text())
     else:
-        # Fallback: extract handles, but UUIDs must be resolved via the
-        # room participants API. Empty IDs will be rejected by the API.
+        # Fallback: extract full owner/handle mentions.
+        # UUIDs must be resolved via the room participants API — empty IDs
+        # will be rejected by the API with HTTP 422.
         log.warning("No mentions file provided; mentions will have empty IDs and likely fail")
-        handles = re.findall(r"@(\w+)", content)
+        handles = re.findall(r"@([\w]+/[\w]+|[\w]+)", content)
         mentions = [{"id": "", "handle": h, "name": h} for h in handles]
     msg_id = await send_message(room_id, content, mentions)
     print(f"sent: {msg_id}")

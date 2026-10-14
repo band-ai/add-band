@@ -4,6 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
+# Adjust User and paths for your setup
 User=ubuntu
 WorkingDirectory=/home/ubuntu/band-bridge
 Environment=BAND_INBOX_DIR=/home/ubuntu/band-bridge/inbox

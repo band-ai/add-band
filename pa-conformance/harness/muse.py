@@ -34,9 +34,10 @@ class MuseHarness(Harness):
     name = "muse"
     restart_services = ("bridge",)
     profile = Profile(
-        # Muse has no model — it's a bridge, not a conversational agent
-        tool_namespace="",
-        native_tool="",
+        # Muse has no model — it's a bridge, not a conversational agent.
+        # Unvalidated facts are UNKNOWN, not blank.
+        tool_namespace=Unknown.UNKNOWN,
+        native_tool=Unknown.UNKNOWN,
         hub_identity=Unknown.UNKNOWN,
         conversation_identity=Unknown.UNKNOWN,
         ordering_fallback=Unknown.UNKNOWN,
