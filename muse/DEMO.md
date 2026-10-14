@@ -87,3 +87,5 @@ INFO:bridge:sent 8e338050-a084-44de-b091-f2cd8d0c1fd9 to 8118c888-fdae-4e70-abf7
 - WebSocket connected, auto-subscribed to 4 rooms
 - Inbound: test message received via push (no polling), written to inbox
 - Outbound: reply sent via REST, message ID `8e338050` confirmed in room
+
+![Bridge test: inbound push and outbound relay](bridge-test.png)
