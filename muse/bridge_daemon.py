@@ -78,7 +78,8 @@ async def on_message(room_id: str, event) -> None:
 
     # Bridge action: write to inbox, ping wake pipe.
     INBOX_DIR.mkdir(parents=True, exist_ok=True)
-    fname = f"{int(time.time() * 1000)}-bridge.md"
+    # Include message ID to avoid collisions under burst
+    fname = f"{int(time.time() * 1000)}-{p.id[:8]}-bridge.md"
     body = (
         f"from: bridge\n"
         f"at: {p.inserted_at}\n"
@@ -110,13 +111,23 @@ async def main() -> None:
 
 
 async def cli_send(room_id: str, content: str) -> None:
-    """CLI entrypoint: python bridge_daemon.py send <room> <content>"""
-    # Extract @mentions from content for the mentions list.
-    # For now, caller provides content with literal @handle; we pass
-    # a minimal mention entry. Full resolution needs room participants.
+    """CLI entrypoint: python bridge_daemon.py send <room> <content>
+
+    NOTE: Requires explicit mention UUIDs. Pass mentions as a JSON file:
+        python bridge_daemon.py send <room> <content> <mentions.json>
+    where mentions.json is [{"id": "<uuid>", "handle": "...", "name": "..."}].
+    The API rejects mentions with empty/invalid UUIDs (HTTP 422).
+    """
     import re
-    handles = re.findall(r"@(\w+)", content)
-    mentions = [{"id": "", "handle": h, "name": h} for h in handles]
+    mentions = []
+    if len(sys.argv) >= 5:
+        mentions = json.loads(Path(sys.argv[4]).read_text())
+    else:
+        # Fallback: extract handles, but UUIDs must be resolved via the
+        # room participants API. Empty IDs will be rejected by the API.
+        log.warning("No mentions file provided; mentions will have empty IDs and likely fail")
+        handles = re.findall(r"@(\w+)", content)
+        mentions = [{"id": "", "handle": h, "name": h} for h in handles]
     msg_id = await send_message(room_id, content, mentions)
     print(f"sent: {msg_id}")
 

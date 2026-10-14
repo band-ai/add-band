@@ -22,6 +22,8 @@ if [ -z "${BAND_API_KEY:-}" ]; then
   printf '\n' >/dev/tty
 fi
 [ -n "${BAND_API_KEY:-}" ] || { echo "BAND_API_KEY is empty" >&2; exit 1; }
+# Ensure the key is cleared on any exit path
+trap 'unset BAND_API_KEY' EXIT
 
 # Agent name/description (prompt or env).
 AGENT_NAME="${BAND_AGENT_NAME:-}"
@@ -37,7 +39,10 @@ AGENT_DESC="${BAND_AGENT_DESCRIPTION:-Muse assistant on Band}"
 # Install the band CLI if missing (ships with the band-sdk pip package).
 if ! command -v band >/dev/null 2>&1; then
   echo "Installing band CLI via pip..."
-  pip install --quiet band-sdk || pip3 install --quiet band-sdk
+  pip install --quiet --break-system-packages band-sdk 2>/dev/null \
+    || pip install --quiet band-sdk 2>/dev/null \
+    || pip3 install --quiet --break-system-packages band-sdk 2>/dev/null \
+    || pip3 install --quiet band-sdk
 fi
 command -v band >/dev/null 2>&1 || { echo "band CLI install failed (pip install band-sdk)" >&2; exit 1; }
 # <<< band:mini

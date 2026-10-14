@@ -17,11 +17,6 @@ this: Muse does not answer mentions, it bridges them.
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
-from pa_settings import pa_settings
-
 from harness.compose import ComposeStack
 from harness.contract import (
     STACKS_DIR,
@@ -78,17 +73,13 @@ class MuseHarness(Harness):
             # The bridge touches /tmp/bridge-ready in the container on connect.
             # We check via docker exec.
             try:
-                out = self.stack.exec("bridge", ["test", "-f", "/tmp/bridge-ready"])
+                self.stack.exec("bridge", "test", "-f", "/tmp/bridge-ready")
                 return True
             except Exception:
                 return False
 
-        wait_for(_ready, timeout=60, what="muse bridge ready")
+        wait_for(_ready, timeout_s=60, desc="muse bridge ready")
 
     def down(self) -> None:
         """Stop the stack and remove local state."""
-        try:
-            self.stack.down()
-        finally:
-            # workdir cleanup is handled by the base class
-            pass
+        self.stack.down()
