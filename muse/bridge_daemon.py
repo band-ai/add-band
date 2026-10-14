@@ -1,8 +1,9 @@
-"""BAND push bridge: WebSocket events -> local inbox + wake pipe. No polling."""
+"""BAND push bridge: WebSocket events -> local inbox + wake pipe. Send via REST. No polling."""
 import asyncio
 import json
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -25,6 +26,38 @@ if not AGENT_ID or not API_KEY:
         API_KEY = API_KEY or (lines[1] if len(lines) > 1 else "")
 INBOX_DIR = Path(os.environ.get("BAND_INBOX_DIR", os.path.expanduser("~/shared/inbox/spark")))
 WAKE_PIPE = Path(os.environ.get("BAND_WAKE_PIPE", os.path.expanduser("~/.jam/wake/spark.pipe")))
+
+
+async def send_message(room_id: str, content: str, mentions: list[dict] | None = None) -> str:
+    """Send a message to a room via the REST API. Returns the message ID."""
+    from band_rest import AsyncRestClient, ChatMessageRequest, ChatMessageRequestMentionsItem
+
+    if not API_KEY:
+        raise SystemExit("Set BAND_API_KEY env var or ~/.config/muse-band/agent.creds")
+
+    mention_items = [
+        ChatMessageRequestMentionsItem(
+            id=m.get("id", ""),
+            handle=m.get("handle", ""),
+            name=m.get("name", ""),
+        )
+        for m in (mentions or [])
+    ]
+
+    client = AsyncRestClient(api_key=API_KEY)
+    try:
+        resp = await client.agent_api_messages.create_agent_chat_message(
+            chat_id=room_id,
+            message=ChatMessageRequest(content=content, mentions=mention_items),
+        )
+        msg_id = resp.data.id
+        log.info("sent %s to %s", msg_id, room_id)
+        return msg_id
+    finally:
+        try:
+            await client.aclose()
+        except Exception:
+            pass
 
 
 async def on_message(room_id: str, event) -> None:
@@ -76,5 +109,20 @@ async def main() -> None:
     await link.run_forever(install_signal_handlers=False)
 
 
+async def cli_send(room_id: str, content: str) -> None:
+    """CLI entrypoint: python bridge_daemon.py send <room> <content>"""
+    # Extract @mentions from content for the mentions list.
+    # For now, caller provides content with literal @handle; we pass
+    # a minimal mention entry. Full resolution needs room participants.
+    import re
+    handles = re.findall(r"@(\w+)", content)
+    mentions = [{"id": "", "handle": h, "name": h} for h in handles]
+    msg_id = await send_message(room_id, content, mentions)
+    print(f"sent: {msg_id}")
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    if len(sys.argv) >= 4 and sys.argv[1] == "send":
+        asyncio.run(cli_send(sys.argv[2], sys.argv[3]))
+    else:
+        asyncio.run(main())
