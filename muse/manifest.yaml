@@ -4,4 +4,4 @@ name: Muse
 repo: https://github.com/band-ai/add-band
 connects_via: skill + CLI
 status: available
-summary: Give Meta's Muse assistant a BAND skill — send/read room messages via the band CLI, with a WebSocket bridge for push (no polling).
+summary: Give Meta's Muse assistant its own BAND agent identity — send/read room messages via the band CLI.
