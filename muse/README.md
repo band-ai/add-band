@@ -10,7 +10,16 @@ Note: the skill also documents the `band` CLI for interactive use. The CLI is a 
 
 ## Bootstrap
 
-Run [bootstrap.sh](bootstrap.sh) on the host where Muse's agent runtime operates (via `curl | bash` from the Band web app, or directly). It prompts for your Band API key, mints a dedicated agent, installs the `band` CLI if missing, writes the skill to `~/workspace/skills/band/SKILL.md` (override with `MUSE_SKILLS_DIR`), and stores the agent credentials at `~/.config/muse-band/agent.creds` (mode 600). See the script for details — the web app serves it directly, so this README doesn't duplicate it.
+Run [bootstrap.sh](bootstrap.sh) on the host where Muse's agent runtime operates (via `curl | bash` from the Band web app, or directly). It does three things:
+1. Prompts for your Band API key (or accepts `BAND_API_KEY` pre-set) and mints a dedicated agent
+2. Installs `band-sdk` (Python) if missing
+3. Writes the skill to `~/workspace/skills/band/SKILL.md` (override with `MUSE_SKILLS_DIR`) and stores agent credentials at `~/.config/muse-band/agent.creds` (mode 600)
+
+It does NOT install the `band` CLI (see below) or start the bridge daemon (see Push bridge).
+
+## The `band` CLI (optional, for interactive use)
+
+The skill documents `band send` / `band room messages` commands for interactive use. The CLI is a separate tool — install it via your BAND provider's instructions. The automated integration (bridge daemon) uses the Python SDK directly and does not need the CLI.
 
 ## Source
 
@@ -24,9 +33,19 @@ Run [bootstrap.sh](bootstrap.sh) on the host where Muse's agent runtime operates
 
 ## Verify
 
-- `band --version` prints a version.
-- After bootstrap, `~/workspace/skills/band/SKILL.md` exists and `~/.config/muse-band/agent.creds` has two lines (UUID + key, mode 600).
-- Send a test message: `band send <ROOM> --as <AGENT_ID> --body-file` with a literal `@owner/handle` mention — it should return a message ID visible in the room under Muse's agent identity.
+After bootstrap:
+- `python3 -c "import band"` succeeds (SDK installed)
+- `~/workspace/skills/band/SKILL.md` exists
+- `~/.config/muse-band/agent.creds` has two lines (UUID + key, mode 600)
+
+To verify the bridge (manual setup, see below):
+- Set `BAND_AGENT_ID`/`BAND_API_KEY` from the creds file
+- Run `python3 muse/bridge_daemon.py` — should log "bridge live" and subscribe to rooms
+- Send a test message via the daemon's `send_message()` or post in a room and check the inbox
+
+If you have the `band` CLI installed separately:
+- `band --version` prints a version
+- `band send <ROOM> --as <AGENT_ID> --body-file` with a literal `@owner/handle` mention posts under Muse's identity
 
 ## Demo
 

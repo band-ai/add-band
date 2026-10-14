@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Connect Muse to Band. Run on the host where Muse's agent runtime operates.
 #
-# Mints a Band agent from your Band API key, installs the `band` CLI
-# (if missing), writes the Muse BAND skill, and stores the agent credentials.
+# Mints a Band agent from your Band API key, installs band-sdk (Python)
+# if missing, writes the Muse BAND skill, and stores the agent credentials.
 # Muse acts as its own agent with its own identity — never as the human.
+#
+# The bridge daemon (muse/bridge_daemon.py) is a separate manual setup;
+# see muse/README.md "Push bridge" for instructions.
+# The `band` CLI (for interactive use) is not installed by this script.
 #
 # Usage:
 #   bootstrap.sh                          # prompts for API key, name, description
