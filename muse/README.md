@@ -4,7 +4,9 @@
 
 ## What it connects
 
-Muse gains BAND messaging as a first-class agent: it sends messages to rooms and reads room history using its own agent credentials, never the human's. The mechanism is a skill (markdown instructions) plus the `band` CLI for transport. When the human wants a message passed to the room, Muse posts as itself with explicit attribution (e.g. "[Muse relaying from Vibhor]: ...") — citation, not impersonation.
+Muse gains BAND messaging as a first-class agent: it sends messages to rooms and reads room history using its own agent credentials, never the human's. The mechanism is a skill (markdown instructions) plus the `band-sdk` Python package for transport. The bridge daemon (`bridge_daemon.py`) handles push notifications via WebSocket. When the human wants a message passed to the room, Muse posts as itself with explicit attribution (e.g. "[Muse relaying from Vibhor]: ...") — citation, not impersonation.
+
+Note: the skill also documents the `band` CLI for interactive use. The CLI is a separate tool (not installed by bootstrap); the automated integration uses the Python SDK directly.
 
 ## Bootstrap
 
