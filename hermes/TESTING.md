@@ -5,16 +5,20 @@ a Band room** — against a *clean Hermes in its own environment* so it never to
 your everyday install.
 
 The snippet ([`bootstrap.sh`](bootstrap.sh)) is thin by design: it installs
-[`hermes-band-platform`](https://github.com/band-ai/hermes-band-platform) into the
-gateway Python from a Git ref, registers a Band agent from your Band API key (in a
-plain shell, so the key never reaches the agent), then hands off to
-`hermes chat -s add-band`. The skill owns the remaining enable/restart/verify loop —
+[`hermes-band-platform`](https://github.com/band-ai/hermes-band-platform) from a
+Git ref as a Hermes **directory plugin** — the repo's `install.sh` stages
+`$HERMES_HOME/plugins/band` and resolves `band-sdk` into `$HERMES_HOME/band-libs`,
+writing nothing to the gateway venv — registers a Band agent from your Band API
+key (in a plain shell, so the key never reaches the agent), then hands off to
+`hermes chat -s band:add-band`. The skill owns the remaining restart/verify loop —
 this test confirms that hand-off works and verifies the result.
 
 ## Prereqs
 
 - A **Band account** and an **API key that can create external agents** (Enterprise).
-- `git`, and network access to clone `band-ai/hermes-band-platform`.
+- `git` and `uv` on PATH (the bootstrap checks both; `install.sh` resolves the SDK
+  with `uv pip install --target`), plus network access to clone
+  `band-ai/hermes-band-platform`.
 - The gateway must run on **Python 3.11–3.13** (`band-sdk` has no 3.14 wheels yet).
 
 The bootstrap registers the agent before the Hermes session starts. Verification
@@ -72,10 +76,12 @@ scripts/local-bootstrap.sh hermes
 ```
 
 > **Testing live plugin edits?** Copy `hermes/bootstrap.sh` to a **git-ignored**
-> `hermes/bootstrap.local.sh` and swap its install line for an editable install from
-> your local clone (`uv pip install --python "$hermes_python" -e "$HOME/path/to/hermes-band-platform"`).
-> `scripts/local-bootstrap.sh hermes` prefers it automatically, or curl it directly —
-> run from the repo root, with `HERMES_HOME` exported in this shell:
+> `hermes/bootstrap.local.sh` and replace its clone + `install.sh` block with your
+> local checkout's own installer
+> (`bash "$HOME/path/to/hermes-band-platform/install.sh"`). A directory plugin is a
+> *copy*, so re-run it after every edit — there is no editable install.
+> `scripts/local-bootstrap.sh hermes` prefers the override automatically, or curl it
+> directly — run from the repo root, with `HERMES_HOME` exported in this shell:
 >
 > ```bash
 > curl -fsSL "file://$PWD/hermes/bootstrap.local.sh" | bash
@@ -83,8 +89,10 @@ scripts/local-bootstrap.sh hermes
 
 **What you'll see, in order:**
 
-1. The bootstrap installs the plugin package from the Git ref into the gateway
-   Python, which also installs `band-sdk`.
+1. The bootstrap clones the Git ref and runs its `install.sh`: the plugin is staged
+   into `$HERMES_HOME/plugins/band`, `band-sdk` is resolved into
+   `$HERMES_HOME/band-libs` with the gateway interpreter, and `band` is enabled.
+   Watch for its `gateway python:`, `band-sdk OK:`, and `plugin dir:` lines.
 2. The bundled `scripts/register-agent.sh` helper mints the agent and prints the
    agent-scoped pair; the bootstrap saves only `BAND_AGENT_ID` + `BAND_API_KEY`
    (the agent-scoped key, replacing your broad key of the same name) to
@@ -93,9 +101,9 @@ scripts/local-bootstrap.sh hermes
    because sparse script fingerprints can trip Cloudflare 1010 at `app.band.ai`;
    preserve that behavior when replacing it with the SDK CLI.
    Confirm: `grep -E 'BAND_AGENT_ID|BAND_API_KEY' "$HERMES_HOME/.env"`.
-3. The bootstrap enables the plugin (CLI or config fallback) and opens
-   `hermes chat -s add-band`, which follows the skill to restart the gateway,
-   verify the hub, and prove the round trip.
+3. The bootstrap opens `hermes chat -s band:add-band` (the plugin namespaces its
+   skills), which follows the skill to restart the gateway, verify the hub, and
+   prove the round trip.
 
 ---
 
@@ -105,9 +113,11 @@ After the agent session finishes, confirm the result deterministically with the
 installed skill's own scripts (run with the gateway interpreter):
 
 ```bash
-HERMES_PY="$(hermes --version 2>&1 | sed -n 's/^Project: //p')/venv/bin/python"
-SKILL="$("$HERMES_PY" -c 'import pathlib, hermes_band_platform; print(pathlib.Path(hermes_band_platform.__path__[0]) / "skills" / "add-band")')"
-"$HERMES_PY" "$SKILL/scripts/verify_install.py"   # expect "success": true, empty "missing"
+# The installed plugin dir is the skill's home, and its own resolver finds the
+# gateway interpreter the same way install.sh does (HERMES_PY overrides).
+SKILL="${HERMES_HOME:-$HOME/.hermes}/plugins/band/skills/add-band"
+HERMES_PY="$(python3 "$SKILL/scripts/gateway_python.py" --print)"
+"$HERMES_PY" "$SKILL/scripts/verify_install.py"   # expect "success": true, empty "blocking"
 
 # If the gateway isn't already running from the agent's restart, start it from THIS
 # shell so it inherits HERMES_HOME (first connect creates the hub + writes BAND_HUB_ROOM):
@@ -134,7 +144,7 @@ grep BAND_HUB_ROOM "$HERMES_HOME/.env"   # a non-empty UUID ⇒ hub created
 ## Pass/fail checklist
 
 - [ ] `register-agent.sh` → `BAND_AGENT_ID` + `BAND_API_KEY` (agent-scoped) saved in `$HERMES_HOME/.env`; broad Band key gone from the shell
-- [ ] `verify_install.py` → `success: true` (package + sdk + entry point/manifest + enabled + creds)
+- [ ] `verify_install.py` → `success: true` with an empty `blocking` (sdk + band-libs on `sys.path` + directory manifest + enabled + creds + access policy). A correct directory install still lists `package_importable`/`entry_point` under `missing` — that layout has neither, by design — so read `blocking`, not `missing`
 - [ ] `verify_gateway.py` → hub present, Band connection signals, no failure signal
 - [ ] `BAND_HUB_ROOM` is a non-empty UUID
 - [ ] @mention in the Hub room round-trips to a reply
@@ -146,22 +156,23 @@ grep BAND_HUB_ROOM "$HERMES_HOME/.env"   # a non-empty UUID ⇒ hub created
 The bootstrap installs `BAND_HERMES_REF` from Git. Set it to the branch, tag, or
 commit under test before Part 1.
 
-When you want a script-only run with no LLM in the loop, run the skill's steps
-yourself after Part 1:
+When you want a script-only run with no LLM in the loop, install from your local
+checkout after Part 1. `install.sh` stages the plugin, resolves the SDK, and
+enables `band`, so it replaces the whole install/enable dance:
 
 ```bash
-# Install the plugin from your LOCAL checkout into the gateway interpreter (+ band-sdk).
-uv pip install --python "$HERMES_PY" -e /path/to/hermes-band-platform
-
-# Enable it; fall back to writing plugins.enabled if the CLI doesn't list entry-point plugins.
-hermes plugins enable band 2>/dev/null && hermes plugins list | grep -qw band \
-  || "$HERMES_PY" -c "from hermes_cli import plugins_cmd as C; s=C._get_enabled_set(); s.add('band'); C._save_enabled_set(s); print('enabled band via config')"
+bash /path/to/hermes-band-platform/install.sh
 ```
 
-Then resume at **Part 2**. Directory-plugin alternative: `hermes plugins install
-band-ai/hermes-band-platform --enable`, then explicitly prompt/install
-`band-sdk>=1.0.0,<2.0.0` into `$HERMES_PY` and fail clearly if
-`"$HERMES_PY" -c "import band"` still fails.
+Then resume at **Part 2**. Package alternative, only on a *writable* gateway venv
+— `install.sh` refuses to run while a pip copy shadows the directory plugin, since
+an entry-point install overrides it and would keep the old code running:
+
+```bash
+uv pip install --python "$HERMES_PY" \
+  "hermes-band @ git+https://github.com/band-ai/hermes-band-platform.git@${BAND_HERMES_REF:-main}"
+hermes plugins enable band
+```
 
 ---
 
@@ -181,10 +192,11 @@ unset HERMES_HOME HERMES_PY BAND_API_KEY
 | Symptom | Cause / fix |
 | --- | --- |
 | `register-agent.sh` exits with HTTP 401/403 | Band API key lacks external-agent create permission, or it is wrong. Use an Enterprise key. |
-| `HERMES_PY` is empty / `python: not found` | `hermes --version` didn't print a `Project:` line. Set `HERMES_PY` to the gateway's venv python by hand. |
-| `hermes chat -s add-band` cannot find the skill | Confirm the package installed into the gateway Python and `hermes_band_platform/skills/add-band/SKILL.md` is present in that package. |
-| Git-ref package install fails | Confirm `BAND_HERMES_REF` points to a public branch, tag, or commit. |
-| `band-sdk` install fails | Gateway Python is 3.14+. Use a 3.11–3.13 interpreter. |
-| `verify_install.py` → `plugin_enabled: false` | Enable step didn't run — rerun it (CLI or config fallback). |
+| `HERMES_PY` is empty / `python: not found` | `gateway_python.py --print` could not resolve the gateway interpreter. Diagnose with `python3 "$SKILL/scripts/gateway_python.py"`, or set `HERMES_PY` by hand — it needs Python 3.11–3.13 with `hermes_cli` importable. |
+| `hermes chat -s band:add-band` cannot find the skill | Confirm `$HERMES_HOME/plugins/band/skills/add-band/SKILL.md` exists and `hermes plugins list` shows `band`. Plugin skills are namespaced, so the bare `add-band` will not resolve. |
+| `install.sh` refuses: a pip copy shadows the directory plugin | An entry-point install of `hermes-band` (or the pre-rename `hermes-band-platform`) overrides it. Remove it with `uv pip uninstall --python "$HERMES_PY" <name>`, or re-run with `BAND_UNINSTALL_PIP=1`. |
+| Git clone of the ref fails | Confirm `BAND_HERMES_REF` points to a public branch, tag, or commit. |
+| `band-sdk` resolve fails | Gateway Python is 3.14+. Use a 3.11–3.13 interpreter. |
+| `verify_install.py` → `plugin_enabled: false` | `hermes plugins enable band`, then confirm with `hermes plugins list`. `install.sh` does this itself and fails loudly if it can't, so a false here means the installer never reached step 5. |
 | No hub created; owner unresolved | Set `BAND_OWNER_ID` in `$HERMES_HOME/.env` and restart the gateway. |
 | No Band signals in `gateway.log` | Confirm the running gateway uses `$HERMES_PY`'s environment and inherited `HERMES_HOME`; rerun `verify_install.py`. |
