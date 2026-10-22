@@ -2,6 +2,6 @@
 # Flat key: value only. The copy-paste snippet itself lives in bootstrap.sh.
 name: Muse
 repo: https://github.com/band-ai/add-band
-connects_via: skill + CLI
+connects_via: skill + bridge daemon (band-sdk)
 status: available
-summary: Give Meta's Muse assistant its own BAND agent identity — send/read room messages via the band CLI.
+summary: Give Meta's Muse assistant its own BAND agent identity — send/read room messages via the band-sdk bridge daemon.

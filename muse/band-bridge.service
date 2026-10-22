@@ -4,18 +4,21 @@ After=network.target
 
 [Service]
 Type=simple
-# Adjust User and paths for your setup
-User=ubuntu
-WorkingDirectory=/home/ubuntu/band-bridge
-Environment=BAND_INBOX_DIR=/home/ubuntu/band-bridge/inbox
-ExecStart=/home/ubuntu/band-bridge-venv/bin/python3 /home/ubuntu/band-bridge/bridge_daemon.py
+WorkingDirectory=%h/band-bridge
+Environment=BAND_INBOX_DIR=%h/band-bridge/inbox
+# systemd does not create the directory StandardOutput appends into.
+ExecStartPre=/bin/mkdir -p %h/band-bridge/logs
+ExecStart=%h/.config/muse-band/venv/bin/python3 %h/band-bridge/bridge_daemon.py
 Restart=always
 RestartSec=10
-StandardOutput=append:/home/ubuntu/band-bridge/logs/daemon.log
-StandardError=append:/home/ubuntu/band-bridge/logs/daemon.log
+StandardOutput=append:%h/band-bridge/logs/daemon.log
+StandardError=append:%h/band-bridge/logs/daemon.log
 
-# Credentials are read from ~/.config/muse-band/agent.creds (mode 600)
-# or BAND_AGENT_ID/BAND_API_KEY env vars
+# Credentials are read from ~/.config/muse-band/agent.creds (mode 600,
+# written by bootstrap) or BAND_AGENT_ID/BAND_API_KEY env vars.
+# Install as a user service:
+#   cp muse/band-bridge.service ~/.config/systemd/user/
+#   systemctl --user enable --now band-bridge
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

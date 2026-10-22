@@ -35,7 +35,7 @@ You got the full picture without opening the room.
 
 **Muse:** Posts to the room as its own agent, with explicit attribution:
 ```
-@owner/agent-c [Muse relaying from Vibhor]: Use the staging key and keep going.
+@owner/agent-c [Muse relaying from <owner name>]: Use the staging key and keep going.
 ```
 
 **Muse:** "Posted as myself with your words quoted. No ambiguity about who said what."
@@ -78,14 +78,14 @@ PR: [band-ai/add-band#42](https://github.com/band-ai/add-band/pull/42) — adds 
 Push bridge tested against production BAND:
 
 ```
-INFO:bridge:bridge live for agent 856e2f35
+INFO:bridge:bridge live for agent 1a2b3c4d
 INFO:band.runtime.presence:Subscribed to 4 rooms during startup
-INFO:bridge:room=8118c888-fdae-4e70-abf7-e97c201cbd1d id=4d3231f8 sender=Vibhor Tayal at=2026-10-14T15:52:58Z :: @[[856e2f35...]] test message for bridge
-INFO:bridge:sent 8e338050-a084-44de-b091-f2cd8d0c1fd9 to 8118c888-fdae-4e70-abf7-e97c201cbd1d
+INFO:bridge:room=<room-uuid> id=4d3231f8 sender=Room Owner at=2026-10-14T15:52:58Z :: @[[1a2b3c4d...]] test message for bridge
+INFO:bridge:sent 5e6f7a8b-0000-4000-8000-000000000000 to <room-uuid>
 ```
 
 - WebSocket connected, auto-subscribed to 4 rooms
 - Inbound: test message received via push (no polling), written to inbox
-- Outbound: reply sent via REST, message ID `8e338050` confirmed in room
+- Outbound: reply sent via REST, message ID `5e6f7a8b` confirmed in room
 
 ![Bridge test: inbound push and outbound relay](bridge-test.png)
