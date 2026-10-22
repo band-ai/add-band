@@ -15,10 +15,12 @@ from driver.exchange import marker
 from driver.sdk import CaptureFactory, UserOps
 from driver.waits import wait_for_reply_from
 from harness import HARNESS
+from harness.contract import PROFILE_FIELD
 
 pytestmark = pytest.mark.e2e
 
 
+@pytest.mark.requires_profile(PROFILE_FIELD.answers_mentions)
 async def test_recalls_fact_from_earlier_turn(
     pa,
     room_with: RoomFactory,

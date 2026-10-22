@@ -82,6 +82,9 @@ class HermesHarness(Harness):
         #: live 2026-07-12: test_thread_recovery_carries_prior_transcript
         #: passes — the post-restart model call carries the pre-restart marker
         rehydrates_thread_after_restart=True,
+        #: L0a definition (pa-conformance/README): one @mention in a fresh
+        #: room must return a reply — the live row for every PA in the suite
+        answers_mentions=True,
     )
 
     def __init__(self, ctx):

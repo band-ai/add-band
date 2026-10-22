@@ -1,7 +1,8 @@
 """L3 group-room scenario: multi-mention fan-out.
 
 The fan-out scenario proves one multi-mention user turn is delivered to and
-processed by every selected PA: each must post a responsive reply after the
+processed by every selected PA that answers mentions
+(Profile.answers_mentions): each must post a responsive reply after the
 group turn. The instruction asks for a token echo, giving compliant models a
 deterministic answer, but the assertion is reply presence, not token
 content — instruction compliance is LLM posture (live-observed: Hermes
@@ -16,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from conftest import PA, RoomFactory, selected_harnesses
+from conftest import PA, RoomFactory, answering_harnesses
 from driver.exchange import marker
 from driver.ops import PAUserOps
 from driver.sdk import CaptureFactory
@@ -26,8 +27,8 @@ pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.skipif(
-    len(selected_harnesses()) < 2,
-    reason="the group fan-out needs at least two harnesses",
+    len(answering_harnesses()) < 2,
+    reason="the group fan-out needs at least two harnesses that answer mentions",
 )
 async def test_group_mention_fans_out(
     pas: dict[str, PA],
@@ -36,7 +37,7 @@ async def test_group_mention_fans_out(
     capture: CaptureFactory,
     run_id: str,
 ) -> None:
-    members = [pas[name] for name in selected_harnesses()]
+    members = [pas[name] for name in answering_harnesses()]
     token = marker(run_id, prefix="PA-GROUP")
 
     room_id = await room_with(members, title="pa-group")

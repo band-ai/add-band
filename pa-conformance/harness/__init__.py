@@ -19,10 +19,11 @@ from harness.contract import (
     ReadyTimeout,
 )
 from harness.hermes import HermesHarness
+from harness.muse import MuseHarness
 from harness.nanoclaw import NanoClawHarness
 from harness.openclaw import OpenClawHarness
 
-_REGISTERED = (NanoClawHarness, OpenClawHarness, HermesHarness)
+_REGISTERED = (NanoClawHarness, OpenClawHarness, HermesHarness, MuseHarness)
 HARNESSES: dict[str, type[Harness]] = {cls.name: cls for cls in _REGISTERED}
 # A duplicated name would silently drop a harness from the dict — and the
 # registry-driven tests would then never exercise it.

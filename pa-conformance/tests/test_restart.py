@@ -50,6 +50,7 @@ async def pa(pa):
     await pa.wait_ready()
 
 
+@pytest.mark.requires_profile(PROFILE_FIELD.answers_mentions)
 async def test_reconnects_and_serves_known_room(
     pa, owner_chat: OwnerChatFactory, run_id: str
 ) -> None:
@@ -68,6 +69,7 @@ async def test_reconnects_and_serves_known_room(
     recovered.assert_contains_any([post])
 
 
+@pytest.mark.requires_profile(PROFILE_FIELD.answers_mentions)
 @pytest.mark.flaky_harness(HARNESS.openclaw, reruns=2)
 async def test_message_for_another_agent_sent_while_down_stays_unprocessed(
     pa,
@@ -163,6 +165,7 @@ async def test_addressed_message_sent_while_down_processed_exactly_once(
     )
 
 
+@pytest.mark.requires_profile(PROFILE_FIELD.answers_mentions)
 @pytest.mark.known_gap(
     HARNESS.hermes,
     reason="INT-1003: hermes re-answers the already-answered last turn after "
