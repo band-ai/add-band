@@ -118,6 +118,9 @@ class NanoClawHarness(Harness):
         #: (persisted main-room state key)
         provisions_hub=True,
         rehydrates_thread_after_restart=Unknown.UNKNOWN,
+        #: L0a definition (pa-conformance/README): one @mention in a fresh
+        #: room must return a reply — the live row for every PA in the suite
+        answers_mentions=True,
     )
 
     def __init__(self, ctx):

@@ -48,6 +48,9 @@ class MuseHarness(Harness):
         emits_processed=False,
         provisions_hub=False,
         rehydrates_thread_after_restart=False,
+        #: muse/bridge_daemon.py:85 (on_message): inbound events are written
+        #: to the inbox and the wake pipe — no code path posts a reply
+        answers_mentions=False,
     )
 
     def __init__(self, ctx: HarnessContext):

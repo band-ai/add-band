@@ -146,6 +146,10 @@ class Profile:
     #: post-restart model context carries the pre-restart transcript (eager
     #: thread replay) — the strict L4 thread-recovery row's read point
     rehydrates_thread_after_restart: bool | Unknown
+    #: the harness posts replies to @mentions (conversational PAs do; a
+    #: bridge forwards mentions without answering) — rows that wait for a
+    #: reply gate on it
+    answers_mentions: bool | Unknown
 
     def __post_init__(self) -> None:
         for spec in fields(self):

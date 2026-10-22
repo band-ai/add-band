@@ -8,8 +8,10 @@ from conftest import OwnerChatFactory
 from driver.exchange import marker
 from driver.ops import PAUserOps
 from driver.waits import wait_for_reply_from
+from harness.contract import PROFILE_FIELD
 
 @pytest.mark.e2e
+@pytest.mark.requires_profile(PROFILE_FIELD.answers_mentions)
 async def test_structured_mention_delivers_without_textual_address_prefix(
     pa, owner_chat: OwnerChatFactory, user_ops: PAUserOps, run_id: str
 ) -> None:

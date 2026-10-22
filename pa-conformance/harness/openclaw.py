@@ -77,6 +77,9 @@ class OpenClawHarness(Harness):
         #: tool call) — OpenClaw does not replay the conversation into the
         #: post-restart model context
         rehydrates_thread_after_restart=False,
+        #: L0a definition (pa-conformance/README): one @mention in a fresh
+        #: room must return a reply — the live row for every PA in the suite
+        answers_mentions=True,
     )
 
     def __init__(self, ctx):
