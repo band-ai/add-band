@@ -24,13 +24,39 @@ if not AGENT_ID or not API_KEY:
         lines = creds.read_text().splitlines()
         AGENT_ID = AGENT_ID or (lines[0] if len(lines) > 0 else "")
         API_KEY = API_KEY or (lines[1] if len(lines) > 1 else "")
-INBOX_DIR = Path(os.environ.get("BAND_INBOX_DIR", os.path.expanduser("~/shared/inbox/spark")))
-WAKE_PIPE = Path(os.environ.get("BAND_WAKE_PIPE", os.path.expanduser("~/.jam/wake/spark.pipe")))
+INBOX_DIR = Path(os.environ.get("BAND_INBOX_DIR", os.path.expanduser("~/band-bridge/inbox")))
+WAKE_PIPE = Path(os.environ.get("BAND_WAKE_PIPE", os.path.expanduser("~/.jam/wake/agent.pipe")))
+
+# Optional non-production Band deployment (staging). BAND_BASE_URL is the
+# https base; the WebSocket URL derives from it (https->wss, http->ws).
+# Unset: the SDK defaults (production app.band.ai) apply.
+BASE_URL = os.environ.get("BAND_BASE_URL", "").rstrip("/")
+
+
+def _ws_url(base_url: str) -> str:
+    """Derive the WebSocket URL from the https base: swap the scheme and,
+    when the base has no path, append the socket path the SDK default
+    carries (wss://app.band.ai/api/v1/socket/websocket)."""
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(base_url)
+    scheme = {"https": "wss", "http": "ws"}.get(parts.scheme, parts.scheme)
+    path = parts.path.rstrip("/") or "/api/v1/socket/websocket"
+    return urlunsplit((scheme, parts.netloc, path, "", ""))
+
+
+def _rest_client():
+    from band_rest import AsyncRestClient
+
+    kwargs = {"api_key": API_KEY}
+    if BASE_URL:
+        kwargs["base_url"] = BASE_URL
+    return AsyncRestClient(**kwargs)
 
 
 async def send_message(room_id: str, content: str, mentions: list[dict] | None = None) -> str:
     """Send a message to a room via the REST API. Returns the message ID."""
-    from band_rest import AsyncRestClient, ChatMessageRequest, ChatMessageRequestMentionsItem
+    from band_rest import ChatMessageRequest, ChatMessageRequestMentionsItem
 
     if not API_KEY:
         raise SystemExit("Set BAND_API_KEY env var or ~/.config/muse-band/agent.creds")
@@ -44,7 +70,7 @@ async def send_message(room_id: str, content: str, mentions: list[dict] | None =
         for m in (mentions or [])
     ]
 
-    client = AsyncRestClient(api_key=API_KEY)
+    client = _rest_client()
     try:
         resp = await client.agent_api_messages.create_agent_chat_message(
             chat_id=room_id,
@@ -102,35 +128,65 @@ async def on_message(room_id: str, event) -> None:
 async def main() -> None:
     if not AGENT_ID or not API_KEY:
         raise SystemExit("Set BAND_AGENT_ID and BAND_API_KEY env vars")
-    link = BandLink(agent_id=AGENT_ID, api_key=API_KEY)
+    link_kwargs = {"agent_id": AGENT_ID, "api_key": API_KEY}
+    if BASE_URL:
+        link_kwargs.update(ws_url=_ws_url(BASE_URL), rest_url=BASE_URL)
+    link = BandLink(**link_kwargs)
     presence = RoomPresence(link)  # auto-subscribes to existing rooms
     presence.on_room_event = on_message
     await presence.start()
     log.info("bridge live for agent %s", AGENT_ID[:8])
+    # Readiness signal for supervisors/healthchecks that ask for one via env
+    # (the pa-conformance stack sets BAND_BRIDGE_READY_FILE=/tmp/bridge-ready).
+    ready_file = os.environ.get("BAND_BRIDGE_READY_FILE")
+    if ready_file:
+        Path(ready_file).touch()
     await link.run_forever(install_signal_handlers=False)
+
+
+async def _resolve_mentions(room_id: str, handles: list[str]) -> list[dict]:
+    """Resolve @owner/handle strings to mention dicts through the room's
+    participant list (the participants API carries id/handle/name)."""
+    client = _rest_client()
+    resp = await client.agent_api_participants.list_agent_chat_participants(room_id)
+    by_handle = {p.handle: p for p in resp.data}
+    mentions = []
+    for handle in handles:
+        participant = by_handle.get(handle)
+        if participant is None:
+            raise SystemExit(
+                f"cannot resolve @{handle}: not a participant of room "
+                f"{room_id}; pass a mentions file with resolved UUIDs instead"
+            )
+        mentions.append(
+            {
+                "id": participant.id,
+                "handle": participant.handle,
+                "name": participant.name or participant.handle,
+            }
+        )
+    return mentions
 
 
 async def cli_send(room_id: str, content: str) -> None:
     """CLI entrypoint: python bridge_daemon.py send <room> <content>
 
-    NOTE: Requires explicit mention UUIDs. Pass mentions as a JSON file:
+    Mentions must carry resolved agent UUIDs — the API rejects mentions
+    with empty/invalid UUIDs (HTTP 422). With an explicit mentions file,
+    its UUIDs are used as given:
         python bridge_daemon.py send <room> <content> <mentions.json>
     where mentions.json is [{"id": "<uuid>", "handle": "...", "name": "..."}].
-    The API rejects mentions with empty/invalid UUIDs (HTTP 422).
-    Handle format is "owner/handle" (e.g. "vibhor15/spark") — the regex
-    below correctly captures the full handle including the slash.
+    Without one, the content's @mentions are resolved through the room's
+    participant list. Handle format is "owner/handle" (e.g.
+    "band-ai/my-agent"); hyphens are valid in both parts.
     """
     import re
-    mentions = []
+
     if len(sys.argv) >= 5:
         mentions = json.loads(Path(sys.argv[4]).read_text())
     else:
-        # Fallback: extract full owner/handle mentions.
-        # UUIDs must be resolved via the room participants API — empty IDs
-        # will be rejected by the API with HTTP 422.
-        log.warning("No mentions file provided; mentions will have empty IDs and likely fail")
-        handles = re.findall(r"@([\w]+/[\w]+|[\w]+)", content)
-        mentions = [{"id": "", "handle": h, "name": h} for h in handles]
+        handles = re.findall(r"@([\w-]+/[\w-]+|[\w-]+)", content)
+        mentions = await _resolve_mentions(room_id, handles) if handles else []
     msg_id = await send_message(room_id, content, mentions)
     print(f"sent: {msg_id}")
 

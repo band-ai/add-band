@@ -2,11 +2,13 @@ FROM python:3.12-slim
 
 RUN pip install --no-cache-dir band-sdk
 
-# The bridge daemon from the Muse integration (muse/bridge_daemon.py)
-COPY bridge_daemon.py /app/bridge_daemon.py
+# Single source: the Muse integration's daemon. The build context is the
+# repo root (see compose.yaml), so this COPYs muse/bridge_daemon.py itself —
+# there is no second copy in the stack directory.
+COPY muse/bridge_daemon.py /app/bridge_daemon.py
 
-# Touch /tmp/bridge-ready when the WebSocket connects (readiness probe)
-# The daemon writes this on successful RoomPresence.start()
+# Readiness: the daemon touches $BAND_BRIDGE_READY_FILE once the WebSocket
+# connects; the compose healthcheck asserts that file exists.
 
 WORKDIR /app
 CMD ["python3", "bridge_daemon.py"]

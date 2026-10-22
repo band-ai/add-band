@@ -8,12 +8,16 @@ services:
   bridge:
     image: ${PA_MUSE_IMAGE:-pa-muse:local}
     build:
-      context: .
+      # Repo-root context: the image COPYs the single source daemon at
+      # muse/bridge_daemon.py (see Dockerfile).
+      context: ../../..
+      dockerfile: pa-conformance/stacks/muse/Dockerfile
     environment:
       - BAND_AGENT_ID=${BAND_AGENT_ID:?}
       - BAND_API_KEY=${BAND_API_KEY:?}
       - BAND_BASE_URL=${BAND_BASE_URL:-https://app.band.ai}
       - BAND_INBOX_DIR=/data/inbox
+      - BAND_BRIDGE_READY_FILE=/tmp/bridge-ready
     volumes:
       - ${PA_MUSE_HOME:?per-run state dir}:/data
     restart: unless-stopped
