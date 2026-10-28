@@ -32,7 +32,10 @@
 #            prompt), BAND_USER_AGENT.
 set -euo pipefail
 
-name_default="Band agent"
+# Agent names are unique per account, so a fixed default fails with HTTP 422
+# ("name has been taken") on the second registration. Host + timestamp keeps the
+# default unique per run and inside Band's name rules (3-100 chars, no @ or /).
+name_default="Band Agent ($(hostname -s 2>/dev/null || echo local) $(date +%Y%m%d-%H%M%S))"
 desc_default="An agent on the Band platform."
 
 usage() {
