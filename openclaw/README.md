@@ -15,7 +15,9 @@ one-liner and your Band API key; run it and paste the key when the script prompt
 The script is [`bootstrap.sh`](bootstrap.sh). It finishes by restarting the
 OpenClaw gateway; on a host with no gateway service installed it prints how to
 start one instead (`openclaw gateway install`, or `openclaw gateway run` in the
-foreground).
+foreground). Re-running it on a host that already has a Band channel account
+skips registration and only redoes the gateway step; to connect a different
+agent, first run `openclaw config unset channels.openclaw-channel-band.accounts.<id>`.
 
 ## Source
 

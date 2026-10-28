@@ -117,16 +117,20 @@ else
   export BAND_AGENT_DESCRIPTION
   # The helper reads the user key from BAND_API_KEY, set for this one command only
   # (never argv), and prints only the agent-scoped BAND_AGENT_ID +
-  # BAND_AGENT_API_KEY — never the user key.
+  # BAND_AGENT_API_KEY — never the user key. Its values come from the server
+  # unquoted, so they are read as data, never evaluated as shell.
   creds="$(BAND_API_KEY="$band_user_key" bash "$skill_dir/scripts/register-agent.sh")" \
     || { echo "Band registration failed (see the error above)." >&2; exit 1; }
-  eval "$creds"
-  [ -n "${BAND_AGENT_ID:-}" ] && [ -n "${BAND_AGENT_API_KEY:-}" ] \
+  BAND_AGENT_ID=$(printf '%s\n' "$creds" | grep '^BAND_AGENT_ID=' | cut -d= -f2- || true)
+  BAND_AGENT_API_KEY=$(printf '%s\n' "$creds" | grep '^BAND_AGENT_API_KEY=' | cut -d= -f2- || true)
+  unset creds
+  [ -n "$BAND_AGENT_ID" ] && [ -n "$BAND_AGENT_API_KEY" ] \
     || { echo "registration returned no agent credentials" >&2; exit 1; }
   # The agent lives on the host it was registered against; the plugin reads
   # BAND_BASE_URL at runtime and defaults to app.band.ai, so persist any other host.
-  band_base_url="${BAND_BASE_URL:-https://app.band.ai}"; band_base_url="${band_base_url%/}"
-  [ "$band_base_url" = "https://app.band.ai" ] && band_base_url=""
+  default_base_url=https://app.band.ai
+  band_base_url="${BAND_BASE_URL:-$default_base_url}"; band_base_url="${band_base_url%/}"
+  [ "$band_base_url" = "$default_base_url" ] && band_base_url=""
   # Persisting runs hermes_cli, which lives in the gateway's interpreter — the same
   # resolution the installer uses (HERMES_PY overrides).
   if [ -z "${HERMES_PY:-}" ]; then

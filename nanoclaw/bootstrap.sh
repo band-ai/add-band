@@ -100,7 +100,8 @@ fi
 nanoclaw_setup_done() {
   [ -f setup/lib/install-slug.sh ] || return 1
   [ -f start-nanoclaw.sh ] && return 0
-  ( PROJECT_ROOT="$PWD" . setup/lib/install-slug.sh
+  ( unset band_user_key  # the sourced helper is checkout code; it never sees the user key
+    PROJECT_ROOT="$PWD" . setup/lib/install-slug.sh
     case "$(uname -s)" in
       Darwin) [ -f "$HOME/Library/LaunchAgents/$(launchd_label).plist" ] ;;
       Linux)  [ -f "$HOME/.config/systemd/user/$(systemd_unit).service" ] \
@@ -152,7 +153,8 @@ if ! band_ready; then
   #    the host of the BAND_BASE_URL the agent was registered against.
   #    (--value puts the key on argv; every add-* skill does the same — it's the
   #    documented `onecli secrets create` interface.)
-  band_base_url="${BAND_BASE_URL:-https://app.band.ai}"; band_base_url="${band_base_url%/}"
+  default_base_url=https://app.band.ai
+  band_base_url="${BAND_BASE_URL:-$default_base_url}"; band_base_url="${band_base_url%/}"
   band_host="${band_base_url#*://}"; band_host="${band_host%%/*}"
   onecli secrets create --name Band --type generic --value "$AGENT_KEY" \
     --host-pattern "$band_host" --header-name X-API-Key --value-format '{value}'
@@ -161,14 +163,17 @@ if ! band_ready; then
   #    (src/modules/band-config.ts) reads the raw BAND_AGENT_API_KEY directly
   #    (canonical; BAND_API_KEY is the legacy fallback) — it isn't behind the OneCLI
   #    egress proxy — so the key lives here too, alongside the vault secret. It reads
-  #    BAND_BASE_URL too (default app.band.ai), so a non-default host is persisted.
+  #    BAND_BASE_URL too (default app.band.ai), so a non-default host is persisted,
+  #    through a temp file renamed over .env so an interrupted write can't truncate
+  #    the credentials appended just above.
   grep -q  '^BAND_AGENT_ID=' .env 2>/dev/null         || echo "BAND_AGENT_ID=$AGENT_ID" >> .env
   grep -qE '^BAND(_AGENT)?_API_KEY=' .env 2>/dev/null || echo "BAND_AGENT_API_KEY=$AGENT_KEY" >> .env
-  if [ "$band_base_url" != "https://app.band.ai" ]; then
-    env_rest=$(grep -v '^BAND_BASE_URL=' .env 2>/dev/null || true)
-    { [ -z "$env_rest" ] || printf '%s\n' "$env_rest"; echo "BAND_BASE_URL=$band_base_url"; } > .env
+  if [ "$band_base_url" != "$default_base_url" ]; then
+    env_tmp=$(mktemp .env.XXXXXX)
+    { grep -v '^BAND_BASE_URL=' .env || true; echo "BAND_BASE_URL=$band_base_url"; } > "$env_tmp"
+    mv "$env_tmp" .env
   fi
-  unset AGENT_KEY env_rest
+  unset AGENT_KEY env_tmp
 
   echo "Registered Band agent $AGENT_ID; key written to .env (host adapter) and the OneCLI vault (containers)."
   echo "If the agent group's OneCLI secretMode is 'selective', grant it this secret (see /manage-channels)."

@@ -19,6 +19,8 @@
 #            BAND_AGENT_DESCRIPTION (set either to skip its prompt).
 set -euo pipefail
 
+default_base_url=https://app.band.ai
+
 # Agent names are unique per account, so a fixed default fails with HTTP 422
 # ("name has been taken") on the second registration. Host + timestamp keeps the
 # default unique per run and inside Band's name rules (3-100 chars, no @ or /).
@@ -78,6 +80,69 @@ else
   exit 1
 fi
 
+# BAND_USER_API_KEY wins when both are set — a stale agent-scoped BAND_API_KEY
+# must not hijack the user-scoped key. The key is held in an unexported shell
+# variable and both names leave the environment before the first openclaw call,
+# so no openclaw process (config reads, plugin install, gateway) inherits it;
+# only curl's stdin config below sees it.
+band_user_key="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
+unset BAND_USER_API_KEY BAND_API_KEY
+
+# Set gateway.mode if unset, then restart the gateway so it loads the plugin and
+# the account. A from-scratch host (this script's target — no prior `openclaw
+# onboard`) has no gateway.mode, and the gateway refuses to start at all without
+# it; a host that already ran onboard keeps its own choice. A host with no
+# installed gateway service (fresh install, container) has nothing to restart:
+# newer CLIs report "Gateway service disabled." and exit non-zero. Registration
+# and config are already done by then, so that outcome ends with how to start the
+# gateway instead of an error; any other restart failure stays fatal. The service
+# state comes from `gateway status --json`; if it can't be read, the restart's own
+# exit status stands.
+gateway_service_missing() {
+  local status loaded
+  status=$(openclaw gateway status --json --no-probe 2>/dev/null) || return 1
+  case "$json_parser" in
+    jq) loaded=$(printf '%s' "$status" | jq -r '.service.loaded' 2>/dev/null) || return 1 ;;
+    python3) loaded=$(printf '%s' "$status" | python3 -c \
+      'import sys, json; print(json.dumps(json.load(sys.stdin)["service"]["loaded"]))' 2>/dev/null) || return 1 ;;
+  esac
+  [ "$loaded" = false ]
+}
+start_gateway() {
+  local restart_rc=0
+  openclaw config get gateway.mode >/dev/null 2>&1 || openclaw config set gateway.mode local
+  openclaw gateway restart || restart_rc=$?
+  [ "$restart_rc" -eq 0 ] && return 0
+  gateway_service_missing || exit "$restart_rc"
+  echo "No gateway service is installed, so nothing was restarted. Start the gateway to bring the agent online:
+  openclaw gateway install   # install and start it as a background service
+  openclaw gateway run       # or run it in the foreground"
+}
+
+# A Band account already in the channel config means an earlier run registered
+# this host. Each run with a unique default name mints a new agent, so a re-run
+# (the recovery for a failed first run) reuses that account and only redoes the
+# gateway step. `channels add` writes the account; `plugins uninstall` and
+# `config unset` remove it (this channel rejects `channels remove --delete`), and
+# `config get` exits non-zero on a missing path and prints `{}` once the last
+# account is unset.
+existing_account=""
+if accounts=$(openclaw config get channels.openclaw-channel-band.accounts --json 2>/dev/null); then
+  case "$json_parser" in
+    jq) existing_account=$(printf '%s' "$accounts" | jq -r 'keys[0] // empty' 2>/dev/null) || existing_account="" ;;
+    python3) existing_account=$(printf '%s' "$accounts" | python3 -c \
+      'import sys, json; print(next(iter(json.load(sys.stdin)), ""))' 2>/dev/null) || existing_account="" ;;
+  esac
+fi
+if [ -n "$existing_account" ]; then
+  unset band_user_key
+  echo "Band agent $existing_account is already wired into openclaw; skipping registration."
+  echo "To connect a different agent instead, remove this one first, then re-run:"
+  echo "  openclaw config unset channels.openclaw-channel-band.accounts.$existing_account"
+  start_gateway
+  exit 0
+fi
+
 # Prompt for any value not supplied by a flag or env var. Prompts write to
 # /dev/tty (not stdout), so they never pollute output; pressing Enter accepts
 # the bracketed default. The `( : >/dev/tty )` probe confirms the terminal is
@@ -102,13 +167,7 @@ name=${name:-$name_default}
 desc=${desc:-$desc_default}
 
 # Get your Band API key: paste it at the prompt (pre-set BAND_USER_API_KEY or
-# BAND_API_KEY to skip). BAND_USER_API_KEY wins when both are set — a stale
-# agent-scoped BAND_API_KEY must not hijack the user-scoped key. The key is held
-# in an unexported shell variable and both names leave the environment at once, so
-# no openclaw process (plugin install, gateway) inherits it; only curl's stdin
-# config below sees it.
-band_user_key="${BAND_USER_API_KEY:-${BAND_API_KEY:-}}"
-unset BAND_USER_API_KEY BAND_API_KEY
+# BAND_API_KEY to skip).
 if [ -z "$band_user_key" ]; then
   [ -r /dev/tty ] || { echo "band: no terminal here to ask on — set BAND_USER_API_KEY and run again." >&2; exit 1; }
   printf 'Paste your Band API key (hidden as you type): ' >/dev/tty
@@ -130,7 +189,7 @@ openclaw plugins install @band-ai/openclaw-channel-band --force ${consent_flag:+
 
 # Register a Band agent. The API key goes through curl's --config (-K -) on
 # stdin, so it never appears in any process's argv (`ps`).
-base="${BAND_BASE_URL:-https://app.band.ai}"; base="${base%/}"
+base="${BAND_BASE_URL:-$default_base_url}"; base="${base%/}"
 resp=$(curl -sS -X POST "$base/api/v1/me/agents/register" \
   -H "Content-Type: application/json" \
   -d "$(printf '{"agent":{"name":"%s","description":"%s"}}' "$(json_escape "$name")" "$(json_escape "$desc")")" \
@@ -173,37 +232,5 @@ case "$base" in
 esac
 openclaw config set "channels.openclaw-channel-band.accounts.$AGENT_ID.wsUrl" "${BAND_WS_URL:-$default_ws_url}"
 openclaw config set "channels.openclaw-channel-band.accounts.$AGENT_ID.restUrl" "$base"
-
-# A from-scratch host (this script's target — no prior `openclaw onboard`) has no
-# gateway.mode set, and the gateway refuses to start at all without it. Set it only
-# if unset, so a host that already ran onboard keeps its own choice.
-openclaw config get gateway.mode >/dev/null 2>&1 || openclaw config set gateway.mode local
-
-# Restart the gateway so it loads the plugin and the new account. A host with no
-# installed gateway service (fresh install, container) has nothing to restart:
-# newer CLIs report "Gateway service disabled." and exit non-zero. Registration
-# and config are already done by then, so that outcome ends with how to start the
-# gateway instead of an error; any other restart failure stays fatal. The service
-# state comes from `gateway status --json`; if it can't be read, the restart's own
-# exit status stands.
-gateway_service_missing() {
-  local status loaded
-  status=$(openclaw gateway status --json --no-probe 2>/dev/null) || return 1
-  case "$json_parser" in
-    jq) loaded=$(printf '%s' "$status" | jq -r '.service.loaded' 2>/dev/null) || return 1 ;;
-    python3) loaded=$(printf '%s' "$status" | python3 -c \
-      'import sys, json; print(json.dumps(json.load(sys.stdin)["service"]["loaded"]))' 2>/dev/null) || return 1 ;;
-  esac
-  [ "$loaded" = false ]
-}
-restart_rc=0
-openclaw gateway restart || restart_rc=$?
-gateway_note=""
-if [ "$restart_rc" -ne 0 ]; then
-  gateway_service_missing || exit "$restart_rc"
-  gateway_note="No gateway service is installed, so nothing was restarted. Start the gateway to bring the agent online:
-  openclaw gateway install   # install and start it as a background service
-  openclaw gateway run       # or run it in the foreground"
-fi
 echo "Registered agent $AGENT_ID. Channel wired; the openclaw CLI stored its credentials."
-[ -z "$gateway_note" ] || printf '%s\n' "$gateway_note"
+start_gateway

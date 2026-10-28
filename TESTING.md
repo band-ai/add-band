@@ -25,9 +25,16 @@ Two consequences worth testing for:
 
 ```bash
 python3 scripts/check.py        # validate the whole catalog (the CI gate)
-pytest tests/ -q                # drift + per-integration validation + bash -n
+pytest tests/ -q                # drift + per-integration validation + bash -n + shim runs
 bash -n <harness>/bootstrap.sh  # syntax-only check of one script
 ```
+
+`tests/test_bootstrap_secrets.py` runs the hermes, nanoclaw and openclaw bootstraps
+against shims of every command they start (harness CLI, git, OneCLI, the hand-off
+agent, and the checkout helper NanoClaw sources). It proves the user API key reaches
+only the registration step and that a re-run doesn't mint a second agent. The shims
+stand in for live behavior they can't show: Band registration, plugin capability
+consent, NanoClaw's real service detection, and OneCLI host-pattern matching.
 
 ## Run it locally (the real path)
 
@@ -70,7 +77,7 @@ handy when you'd rather not exercise the `/dev/tty` path.
 Run against a throwaway home/config so your everyday install is untouched (Hermes, for
 instance, honors `HERMES_HOME` — see [`hermes/TESTING.md`](hermes/TESTING.md)). Afterward,
 delete the test agent at `app.band.ai` and rotate/revoke the test **API key**. The
-bootstraps `unset BAND_API_KEY` once the agent is registered, but that only clears it
-inside the script's own shell — if you pre-set the key with `export BAND_API_KEY=…`
-in your shell (or the `export … && curl … | bash` one-liner), it still lingers in the
-parent shell, so `unset BAND_API_KEY` there yourself.
+bootstraps take the key out of their own environment before starting any other
+command, but that only clears it inside the script's own shell — if you pre-set the
+key with `export BAND_API_KEY=…` in your shell (or the `export … && curl … | bash`
+one-liner), it still lingers in the parent shell, so `unset BAND_API_KEY` there yourself.
