@@ -67,7 +67,7 @@ Band API key, then run the local bootstrap harness:
 
 ```bash
 export BAND_API_KEY="<your-band-api-key>"
-export BAND_HERMES_REF="${BAND_HERMES_REF:-main}"  # use a tag/commit for reproducible testing
+# BAND_HERMES_REF unset installs the latest release; set a tag/branch/commit to test that instead
 scripts/local-bootstrap.sh hermes
 ```
 
@@ -143,8 +143,8 @@ grep BAND_HUB_ROOM "$HERMES_HOME/.env"   # a non-empty UUID ⇒ hub created
 
 ## Testing unreleased code (deterministic manual path)
 
-The bootstrap installs `BAND_HERMES_REF` from Git. Set it to the branch, tag, or
-commit under test before Part 1.
+The bootstrap installs `BAND_HERMES_REF` from Git, or the latest GitHub release when
+it is unset. Set it to the branch, tag, or commit under test before Part 1.
 
 When you want a script-only run with no LLM in the loop, run the skill's steps
 yourself after Part 1:

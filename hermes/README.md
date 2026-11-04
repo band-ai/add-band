@@ -41,8 +41,9 @@ two bash is uniquely placed to do, then the hand-off to the agent:
 ## Source
 
 - **Repo:** [`band-ai/hermes-band-platform`](https://github.com/band-ai/hermes-band-platform)
-  — the bootstrap installs from `BAND_HERMES_REF` (`main` by default). Set a
-  tag or commit for a reproducible install.
+  — the bootstrap installs `BAND_HERMES_REF`, defaulting to the latest GitHub
+  release (it stops with an error if GitHub can't be reached to look it up). Set a
+  tag, branch, or commit to install that instead.
 - **Skill:** `hermes_band_platform/skills/add-band/SKILL.md` (also available as
   `hermes /add-band` once the plugin is installed).
 - **Fresh box / non-Hermes agent:** the one-shot install prompt at

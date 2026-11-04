@@ -70,7 +70,26 @@ fi
 hermes_home="${HERMES_HOME:-$HOME/.hermes}"
 # BAND_HERMES_REF may be a branch, a tag, or a full 40-character commit SHA:
 # `git clone --branch` rejects SHAs, while a fetch of the single ref accepts all three.
-BAND_HERMES_REF="${BAND_HERMES_REF:-main}"
+# Unset, it resolves to the latest published (non-prerelease) GitHub release — the
+# same release-please release as the latest `hermes-band` on PyPI — so this one-liner
+# never needs an edit per plugin release and never installs unreleased `main`. If that
+# lookup fails (offline, GitHub API rate limit) the run stops: silently installing
+# `main` instead would ship unreleased code with no one noticing.
+latest_hermes_release() {
+  command -v curl >/dev/null || return 1
+  curl -fsSL --max-time 30 -H 'Accept: application/vnd.github+json' \
+    https://api.github.com/repos/band-ai/hermes-band-platform/releases/latest \
+    | tr -d '\n' | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+}
+if [ -z "${BAND_HERMES_REF:-}" ]; then
+  BAND_HERMES_REF="$(latest_hermes_release)" || BAND_HERMES_REF=""
+  [ -n "$BAND_HERMES_REF" ] || {
+    echo "can't look up the latest hermes-band-platform release on GitHub (offline or rate-limited?)." >&2
+    echo "Retry, or set BAND_HERMES_REF to a release tag (https://github.com/band-ai/hermes-band-platform/releases), branch, or commit." >&2
+    exit 1
+  }
+  echo "Installing hermes-band-platform $BAND_HERMES_REF (latest release)."
+fi
 clone_dir="$(mktemp -d)"
 trap 'rm -rf "$clone_dir"' EXIT
 src_dir="$clone_dir/hermes-band-platform"

@@ -4,7 +4,8 @@ Every external command a bootstrap starts (the harness CLI, git, OneCLI, the
 hand-off agent, checkout code it sources) is replaced by a shim on PATH that
 records its argv and environment. The tests assert the user API key reaches only
 the registration step (curl's stdin config, or the register helper's environment)
-and no other process, and that a re-run never mints a second agent.
+and no other process, that a re-run never mints a second agent, and which
+hermes-band-platform ref the hermes bootstrap installs.
 
 Each bootstrap runs on a pseudo-terminal because the hand-offs redirect stdin
 from /dev/tty, which fails without a controlling terminal.
@@ -190,30 +191,49 @@ def test_openclaw_rerun_reuses_the_registered_account(sandbox: Sandbox):
 
 # ------------------------------------------------------------------ hermes
 
-def test_hermes_keeps_user_and_agent_keys_out_of_children(sandbox: Sandbox):
-    hermes_home = sandbox.home / ".hermes"
-    gateway_env = sandbox.state / "gateway.env"
-    sandbox.shim("uv")
-    sandbox.shim("fake-install")
-    sandbox.shim(
+RELEASE_TAG = "v9.8.7"
+
+# Pretty-printed like api.github.com, with a nested object carrying its own fields
+# so the tag parse has to pick the top-level `tag_name`.
+GITHUB_RELEASE_BODY = f"""
+if "releases/latest" not in args[-1]:
+    sys.exit(2)
+print(json.dumps({{
+    "url": args[-1],
+    "tag_name": {RELEASE_TAG!r},
+    "target_commitish": "main",
+    "prerelease": False,
+    "assets": [{{"name": "notes.txt", "label": None}}],
+}}, indent=2))
+"""
+
+
+def hermes_box(box: Sandbox, *, github_up: bool = True, **extra: str) -> dict[str, str]:
+    hermes_home = box.home / ".hermes"
+    gateway_env = box.state / "gateway.env"
+    box.shim("uv")
+    box.shim("fake-install")
+    # curl's 22 is what `-f` returns on an HTTP error such as a 403 rate limit.
+    box.shim("curl", GITHUB_RELEASE_BODY if github_up else "sys.exit(22)\n")
+    box.shim(
         "git",
         f"""
 if "init" in args:
     Path(args[-1]).mkdir(parents=True)
 elif "checkout" in args:
     installer = Path(args[args.index("-C") + 1]) / "install.sh"
-    installer.write_text('#!/bin/sh\\nexec {sandbox.bin / "fake-install"} "$@"\\n')
+    installer.write_text('#!/bin/sh\\nexec {box.bin / "fake-install"} "$@"\\n')
     installer.chmod(0o755)
 """,
     )
-    sandbox.shim(
+    box.shim(
         "hermes",
         f"""
 if args[:2] == ["config", "env-path"]:
     print({str(gateway_env)!r})
 """,
     )
-    hermes_py = sandbox.shim(
+    hermes_py = box.shim(
         "gateway-python",
         f"""
 sys.stdin.read()
@@ -222,15 +242,24 @@ Path({str(gateway_env)!r}).write_text("BAND_AGENT_ID=" + os.environ["BAND_AGENT_
     )
     bash_shim(
         hermes_home / "plugins/band/skills/add-band/scripts/register-agent.sh",
-        f"""{{ echo "=== [\\"register-agent.sh\\"]"; env; }} >> {sandbox.allowed}
+        f"""{{ echo "=== [\\"register-agent.sh\\"]"; env; }} >> {box.allowed}
 printf 'BAND_AGENT_ID=agent-1\\nBAND_AGENT_API_KEY={AGENT_KEY}\\n'
 """,
     )
-    env = sandbox.env(
+    return box.env(
         HERMES_HOME=str(hermes_home),
         HERMES_PY=str(hermes_py),
         BAND_AGENT_NAME="Shim Agent",
+        **extra,
     )
+
+
+def fetched_refs(box: Sandbox) -> list[str]:
+    return [argv[-1] for argv, _ in box.records() if argv[0] == "git" and "fetch" in argv]
+
+
+def test_hermes_keeps_user_and_agent_keys_out_of_children(sandbox: Sandbox):
+    env = hermes_box(sandbox)
 
     result = run_on_tty(ROOT / "hermes" / "bootstrap.sh", env, sandbox.root)
 
@@ -239,6 +268,43 @@ printf 'BAND_AGENT_ID=agent-1\\nBAND_AGENT_API_KEY={AGENT_KEY}\\n'
     chats = [environ for argv, environ in sandbox.records() if argv[:2] == ["hermes", "chat"]]
     assert len(chats) == 1, "the bootstrap never handed off to hermes chat"
     assert AGENT_KEY not in chats[0]
+
+
+def test_hermes_installs_the_latest_release_when_no_ref_is_set(sandbox: Sandbox):
+    env = hermes_box(sandbox)
+
+    result = run_on_tty(ROOT / "hermes" / "bootstrap.sh", env, sandbox.root)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    lookups = [argv for argv, _ in sandbox.records() if argv[0] == "curl"]
+    assert len(lookups) == 1
+    assert lookups[0][-1] == "https://api.github.com/repos/band-ai/hermes-band-platform/releases/latest"
+    assert fetched_refs(sandbox) == [RELEASE_TAG]
+    assert any(argv[0] == "fake-install" for argv, _ in sandbox.records())
+
+
+def test_hermes_explicit_ref_wins_without_a_release_lookup(sandbox: Sandbox):
+    env = hermes_box(sandbox, github_up=False, BAND_HERMES_REF="feature/under-test")
+
+    result = run_on_tty(ROOT / "hermes" / "bootstrap.sh", env, sandbox.root)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert [argv for argv, _ in sandbox.records() if argv[0] == "curl"] == []
+    assert fetched_refs(sandbox) == ["feature/under-test"]
+
+
+def test_hermes_stops_when_the_release_lookup_fails(sandbox: Sandbox):
+    env = hermes_box(sandbox, github_up=False)
+
+    result = run_on_tty(ROOT / "hermes" / "bootstrap.sh", env, sandbox.root)
+
+    assert result.returncode != 0
+    assert "can't look up the latest hermes-band-platform release" in result.stderr
+    assert "BAND_HERMES_REF" in result.stderr
+    started = [argv[0] for argv, _ in sandbox.records()]
+    assert fetched_refs(sandbox) == [], "fell back to installing an unresolved ref"
+    assert "fake-install" not in started
+    assert not (sandbox.state / "gateway.env").exists(), "registered an agent without installing"
 
 
 # ---------------------------------------------------------------- nanoclaw
