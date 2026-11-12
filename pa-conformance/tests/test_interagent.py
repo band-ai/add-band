@@ -2,17 +2,19 @@
 bounded ask-and-relay and a deterministic marker comes back within the
 turn/timeout bound.
 
-The asker/responder pair is the first two selected harnesses — the exchange
-mechanics under test (structured mentions, targeted delivery, non-owner
-prompts answered) are identical for any ordered pair; per-pair coverage is
-later-phase scorecard work.
+The asker/responder pair is the first two selected harnesses that answer
+mentions (Profile.answers_mentions) — the exchange needs a reply, so a
+receive-only bridge cannot take either role. The exchange mechanics under
+test (structured mentions, targeted delivery, non-owner prompts answered)
+are identical for any ordered pair; per-pair coverage is later-phase
+scorecard work.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from conftest import PA, RoomFactory, selected_harnesses
+from conftest import PA, RoomFactory, answering_harnesses
 from driver.exchange import marker, run_exchange
 from driver.sdk import CaptureFactory, UserOps
 
@@ -20,8 +22,8 @@ pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.skipif(
-    len(selected_harnesses()) < 2,
-    reason="the inter-agent exchange needs at least two harnesses",
+    len(answering_harnesses()) < 2,
+    reason="the inter-agent exchange needs at least two harnesses that answer mentions",
 )
 async def test_seeded_ask_and_relay(
     pas: dict[str, PA],
@@ -30,7 +32,7 @@ async def test_seeded_ask_and_relay(
     capture: CaptureFactory,
     run_id: str,
 ) -> None:
-    asker, responder = (pas[name] for name in selected_harnesses()[:2])
+    asker, responder = (pas[name] for name in answering_harnesses()[:2])
 
     room_id = await room_with([asker, responder], title="pa-interagent")
 

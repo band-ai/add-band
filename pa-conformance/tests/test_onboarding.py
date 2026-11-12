@@ -21,8 +21,12 @@ from conftest import BootstrapOnboard
 from driver.chat import OwnerChat
 from driver.exchange import liveness_name
 from driver.sdk import CaptureFactory, ResourceManager, UserOps
+from harness.contract import PROFILE_FIELD
 
 pytestmark = pytest.mark.e2e
+
+
+@pytest.mark.requires_profile(PROFILE_FIELD.answers_mentions)
 
 
 @pytest.mark.harness_skip(

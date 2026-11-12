@@ -1,7 +1,7 @@
 name: PA conformance
 
-# Live end-to-end bring-up of the three PA harnesses (NanoClaw, OpenClaw,
-# Hermes) against hosted Band: each comes up headlessly, answers a direct
+# Live end-to-end bring-up of the four PA harnesses (NanoClaw, OpenClaw,
+# Hermes, Muse) against hosted Band: each comes up headlessly, answers a direct
 # @mention, and they complete bounded inter-agent exchanges. Provisions real
 # Band agents and calls real model providers, so it runs on demand and for
 # suite or component-pin changes in pull requests opened from this repository;
@@ -40,6 +40,9 @@ on:
       # Hermes/NanoClaw bootstraps aren't executed (their F4 rows are skipped),
       # so they're deliberately left out until those skips are lifted.
       - "openclaw/**"
+      # The Muse stack image COPYs muse/bridge_daemon.py (the stack's build
+      # context is the repo root), so changes there must re-run conformance.
+      - "muse/**"
   workflow_dispatch:
     inputs:
       harnesses:
@@ -51,6 +54,7 @@ on:
           - nanoclaw
           - openclaw
           - hermes
+          - muse
           - nanoclaw,openclaw
           - nanoclaw,hermes
           - openclaw,hermes
@@ -110,7 +114,7 @@ jobs:
           live=true
           if [[ "${{ github.event.action }}" == "synchronize" ]] \
               && git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
-              && git diff --quiet "$BEFORE" "$AFTER" -- pa-conformance openclaw .github/workflows/pa-conformance.yml; then
+              && git diff --quiet "$BEFORE" "$AFTER" -- pa-conformance openclaw muse .github/workflows/pa-conformance.yml; then
             live=false
           fi
           echo "live=$live" >> "$GITHUB_OUTPUT"
@@ -231,6 +235,14 @@ jobs:
       - name: Pull OpenClaw image
         if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'openclaw') }}
         run: docker compose -f pa-conformance/stacks/openclaw/compose.yaml pull gateway
+
+      - name: Build Muse image (bridge daemon)
+        if: ${{ env.PA_HARNESSES == '' || contains(env.PA_HARNESSES, 'muse') }}
+        # The PA_* / BAND_* vars are runtime-only, but compose validates the
+        # whole file at parse time — satisfy the `:?` guards with placeholders.
+        run: >-
+          PA_MUSE_HOME=/tmp BAND_AGENT_ID=build-only BAND_API_KEY=<redacted>
+          docker compose -f pa-conformance/stacks/muse/compose.yaml build bridge
 
       - name: Run strict integration conformance
         working-directory: pa-conformance

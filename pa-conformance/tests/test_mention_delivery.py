@@ -13,10 +13,12 @@ from conftest import OwnerChatFactory
 from driver.exchange import liveness_name, liveness_prompt, marker
 from driver.sdk import ResourceManager, UserOps
 from driver.waits import said_by
+from harness.contract import PROFILE_FIELD
 
 pytestmark = pytest.mark.e2e
 
 
+@pytest.mark.requires_profile(PROFILE_FIELD.answers_mentions)
 async def test_unaddressed_turn_does_not_prompt_reply(
     pa,
     owner_chat: OwnerChatFactory,

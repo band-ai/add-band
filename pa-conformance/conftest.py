@@ -43,7 +43,7 @@ from driver.sdk import (
     reply_capture,
 )
 from harness import HARNESSES, BandIdentity, Harness, HarnessContext, Profile
-from harness.contract import PROFILE_FIELDS
+from harness.contract import PROFILE_FIELD, PROFILE_FIELDS
 
 logger = logging.getLogger(__name__)
 _known_gap_xpasses: list[str] = []
@@ -57,6 +57,20 @@ def selected_harnesses() -> list[str]:
     if unknown:
         raise ValueError(f"unknown harness(es) {unknown}; known: {sorted(HARNESSES)}")
     return names
+
+
+def answering_harnesses() -> list[str]:
+    """Selected harnesses whose Profile declares answers_mentions.
+
+    Multi-harness scenarios that wait for replies (the inter-agent exchange,
+    the group fan-out) can only include these: a receive-only bridge harness
+    never posts one.
+    """
+    return [
+        name
+        for name in selected_harnesses()
+        if HARNESSES[name].profile.satisfied(PROFILE_FIELD.answers_mentions)
+    ]
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:

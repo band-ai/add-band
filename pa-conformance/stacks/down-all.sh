@@ -24,7 +24,7 @@ failed=0
 if ! projects="$(docker compose ls -a --format json \
   | python3 -c 'import json,sys
 for p in json.load(sys.stdin):
-    if p["Name"].startswith(("pa-nanoclaw-", "pa-openclaw-", "pa-hermes-")):
+    if p["Name"].startswith(("pa-nanoclaw-", "pa-openclaw-", "pa-hermes-", "pa-muse-")):
         print(p["Name"] + "\t" + (p.get("ConfigFiles") or ""))')"; then
   echo "failed to list PA-conformance compose projects" >&2
   exit 1

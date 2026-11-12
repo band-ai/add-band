@@ -16,10 +16,12 @@ from driver.exchange import liveness_name, liveness_prompt
 from driver.sdk import CaptureFactory, UserOps
 from driver.waits import wait_for_reply_from
 from harness import HARNESS
+from harness.contract import PROFILE_FIELD
 
 pytestmark = pytest.mark.e2e
 
 
+@pytest.mark.requires_profile(PROFILE_FIELD.answers_mentions)
 async def test_replies_to_direct_message(
     pa,
     room_with: RoomFactory,
