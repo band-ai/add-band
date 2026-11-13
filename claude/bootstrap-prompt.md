@@ -29,6 +29,19 @@ references use each repository's `main` branch.
 
 The shared character prompts live at `examples/prompts/characters.py` — fetch verbatim, no transformation.
 
+## Authentication failure recovery
+
+On an actual Band HTTP 401/403 during registration, startup or verification,
+pause dependent work and follow [the recovery guide](https://raw.githubusercontent.com/band-ai/add-band/main/ONBOARDING-RECOVERY.md).
+This branch takes precedence over generic STOP and mandatory picker/numbered-choice instructions below; recovery questions accept free-text answers. Ask no extra
+deployment questions on success. Reuse known context; if the guide cannot be
+loaded, explain that credentials or a different Band address may cause the
+failure and ask what website the user normally opens to use Band. Collect free
+text through the available tool or plain chat, then wait. Resolve endpoints from
+documentation/configuration, or help ask their administrator; never guess paths.
+Configure confirmed settings for them and resume only missing work.
+Provider authentication and ordinary timeouts are separate investigations.
+
 ## Procedure
 
 Follow these steps in order. Use AskUserQuestion for every user-facing prompt.
@@ -108,7 +121,7 @@ BAND_AGENT_ID=<uuid>
 BAND_AGENT_API_KEY=<agent-key>
 ```
 
-Run via Bash (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then `eval` the script output for each agent so `BAND_AGENT_ID` and `BAND_AGENT_API_KEY` land in the shell directly (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
+Run via Bash (foreground — these are short calls). Fetch the script once into a tempfile, export the env vars, then parse the script output as data for each agent and retain successful credentials in the project configuration (same pattern other `add-band` integrations like `nanoclaw/bootstrap.sh` use):
 
 ```bash
 REGISTER_URL="https://raw.githubusercontent.com/band-ai/add-band/main/scripts/register-agent.sh"
@@ -116,19 +129,93 @@ SCRIPT_FILE=$(mktemp) && curl -fsSL "$REGISTER_URL" -o "$SCRIPT_FILE"
 export BAND_USER_API_KEY="<user-api-key-from-step-1>"
 export BAND_BASE_URL="<BAND_REST_URL from Step 1>"  # register-agent.sh targets this host
 
+# Check retained state before any registration. Never mix deployments.
+# Step 4 must have approved this output directory.
+MISSING_AGENTS=$(BAND_REST_URL="$BAND_BASE_URL" uv run --no-project --python 3.12 --with pyyaml --with python-dotenv python - <<'PYTHON'
+import os
+from pathlib import Path
+import yaml
+from dotenv import dotenv_values, set_key
+
+out = Path("<out>")
+path = out / "agent_config.yaml"
+try:
+    state = yaml.safe_load(path.read_text()) if path.exists() else {}
+except yaml.YAMLError:
+    raise SystemExit("Retained agent configuration is invalid; reconcile it before registering.") from None
+if not isinstance(state, dict):
+    raise SystemExit("Retained agent configuration is invalid; reconcile it before registering.")
+for role in ("tom_agent", "jerry_agent"):
+    if role in state and (not isinstance(state[role], dict) or not all(
+        isinstance(state[role].get(field), str) and state[role][field]
+        for field in ("agent_id", "api_key")
+    )):
+        raise SystemExit("Retained agent credentials are incomplete; reconcile them before registering.")
+env_path = out / ".env"
+retained_url = dotenv_values(env_path).get("BAND_REST_URL")
+confirmed_url = os.environ["BAND_REST_URL"].rstrip("/")
+if any(role in state for role in ("tom_agent", "jerry_agent")) and (
+    not retained_url or retained_url.rstrip("/") != confirmed_url
+):
+    raise SystemExit("Retained agents belong to a different or unknown destination. Preserve this directory and use a separate output directory for the confirmed deployment.")
+out.mkdir(parents=True, exist_ok=True)
+# Keep user settings and ignore rules; only establish the confirmed REST value.
+set_key(env_path, "BAND_REST_URL", confirmed_url)
+ignore = out / ".gitignore"
+existing = ignore.read_text() if ignore.exists() else ""
+missing = [name for name in (".env", "agent_config.yaml", ".venv/", "__pycache__/") if name not in existing.splitlines()]
+if missing:
+    with ignore.open("a") as stream:
+        stream.write(("\n" if existing and not existing.endswith("\n") else "") + "\n".join(missing) + "\n")
+print(" ".join(role for role in ("tom_agent", "jerry_agent") if role not in state))
+PYTHON
+) || exit 1
+
+# Save each completed registration before attempting another.
+save_agent() {
+  AGENT_ROLE="$1" BAND_AGENT_ID="$2" BAND_AGENT_API_KEY="$3" \
+    uv run --no-project --python 3.12 --with pyyaml python - <<'PYTHON'
+import os, tempfile
+from pathlib import Path
+import yaml
+path = Path("<out>/agent_config.yaml")
+try:
+    state = yaml.safe_load(path.read_text()) if path.exists() else {}
+except yaml.YAMLError:
+    raise SystemExit("Retained agent configuration is invalid; reconcile it before registering.") from None
+state[os.environ["AGENT_ROLE"]] = {
+    "agent_id": os.environ["BAND_AGENT_ID"],
+    "api_key": os.environ["BAND_AGENT_API_KEY"],
+}
+with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as pending:
+    yaml.safe_dump(state, pending)
+os.replace(pending.name, path)
+PYTHON
+}
+
+case " $MISSING_AGENTS " in *" tom_agent "*)
 # Tom
 export BAND_AGENT_NAME="Tom"
 export BAND_AGENT_DESCRIPTION="A clever and persistent cat who loves to catch mice. Known for creative schemes and dramatic flair."
-eval "$(bash "$SCRIPT_FILE")"
-TOM_AGENT_ID="$BAND_AGENT_ID"
-TOM_API_KEY="$BAND_AGENT_API_KEY"
+REGISTRATION=$(bash "$SCRIPT_FILE") || { unset REGISTRATION; exit 1; }
+TOM_AGENT_ID=$(printf '%s\n' "$REGISTRATION" | sed -n 's/^BAND_AGENT_ID=//p')
+TOM_API_KEY=$(printf '%s\n' "$REGISTRATION" | sed -n 's/^BAND_AGENT_API_KEY=//p')
+unset REGISTRATION
+[ -n "$TOM_AGENT_ID" ] && [ -n "$TOM_API_KEY" ] || exit 1
+save_agent tom_agent "$TOM_AGENT_ID" "$TOM_API_KEY" || exit 1
+;; esac
 
+case " $MISSING_AGENTS " in *" jerry_agent "*)
 # Jerry
 export BAND_AGENT_NAME="Jerry"
 export BAND_AGENT_DESCRIPTION="A clever and friendly mouse who lives in a cozy hole. Smart, witty, and loves cheese."
-eval "$(bash "$SCRIPT_FILE")"
-JERRY_AGENT_ID="$BAND_AGENT_ID"
-JERRY_API_KEY="$BAND_AGENT_API_KEY"
+REGISTRATION=$(bash "$SCRIPT_FILE") || { unset REGISTRATION; exit 1; }
+JERRY_AGENT_ID=$(printf '%s\n' "$REGISTRATION" | sed -n 's/^BAND_AGENT_ID=//p')
+JERRY_API_KEY=$(printf '%s\n' "$REGISTRATION" | sed -n 's/^BAND_AGENT_API_KEY=//p')
+unset REGISTRATION
+[ -n "$JERRY_AGENT_ID" ] && [ -n "$JERRY_API_KEY" ] || exit 1
+save_agent jerry_agent "$JERRY_AGENT_ID" "$JERRY_API_KEY" || exit 1
+;; esac
 
 # Clean up the shell — the tempfile is done; the user key is reused once more,
 # from memory, in Step 9's verification.
@@ -136,15 +223,20 @@ rm -f "$SCRIPT_FILE"
 unset BAND_USER_API_KEY BAND_BASE_URL BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAND_AGENT_ID BAND_AGENT_API_KEY
 ```
 
-**Fail loudly on errors.** If either `curl … | bash` exits non-zero, or either `TOM_*` / `JERRY_*` variable comes back empty, STOP and surface the failure (including the script's stderr) to the user. Do NOT proceed to write any local files with half-provisioned agents — that leaves the user with an orphaned agent on the platform and a broken local setup. If only one of the two succeeded, tell the user explicitly so they know to clean it up on the platform before re-running.
+**Check each registration before continuing.** Run Tom and Jerry as separate
+foreground attempts, never in parallel. After the first Band 401/403, stop all
+registrations using that key and destination, including the other agent. Do not
+try Jerry to confirm a rejection already received for Tom. For Band 401/403,
+enter authentication recovery above instead of declaring the key invalid.
+Preserve any successful pair and its destination; after repair register only the
+missing agent. Never repeat the whole block blindly. For uncertain POST outcomes
+or `has already been taken`, inspect existing agents at the confirmed site before
+retrying. Do not automatically delete/rename agents or reuse credentials across
+deployments. Report safe status diagnostics, never raw response bodies or keys.
+Clean up temporary helpers and unset broad user-key environment values on exit;
+do not assume cleanup ran after interruption. Keep the partial credential files for recovery; do not launch a project with missing credentials. Read retained pairs from agent_config.yaml in later tool invocations instead of relying on shell variables. Step 7 completes the .env without discarding confirmed settings. On cancellation stop and preserve known state.
 
-**Special case — "name has already been taken":** if the script's stderr (or the response body it echoes) contains `has already been taken`, that's the platform telling you the user already has Band.ai agents named `Tom` and/or `Jerry` on their account — the platform enforces uniqueness on `(owner_id, name)`. STOP, clean up the tempfile and unset the env vars (same cleanup as the success path), then tell the user (use this wording or something close):
-
-> ⚠️ **Can't continue — agents already exist.** You already have a Band.ai agent named **Tom** or **Jerry** on your account. These instructions need to create new ones with those exact names, and the platform won't allow duplicates. Please open the Band.ai UI and either **delete** the existing Tom/Jerry agents or **rename** them (e.g. `Tom-old`). Once that's done, reply here and I'll retry the provisioning step.
-
-Then **wait for the user's reply** — do not retry on your own, do not move on to Step 6, do not write any files. When the user confirms they've cleaned up, retry Step 5 from the top. If they ask to abort, stop cleanly.
-
-Keep `TOM_AGENT_ID`, `TOM_API_KEY`, `JERRY_AGENT_ID`, `JERRY_API_KEY` in memory for Steps 7 and 9. Do NOT write the user API key anywhere on disk — it's used only here and in Step 9's verification.
+Read the retained Tom and Jerry pairs from `agent_config.yaml` for Steps 7 and 9, including agents skipped during resume. Do NOT write the user API key anywhere on disk — it's used only here and in Step 9's verification.
 
 ### Step 6 — Fetch and transform the example files
 
@@ -212,7 +304,7 @@ Write each transformed file to `<out>/tom_agent.py` and `<out>/jerry_agent.py`.
 
 Write these directly (they're scaffolding, not SDK code — no fetch needed). Substitute the bracketed values.
 
-**`<out>/agent_config.yaml`** — uses the four values captured in Step 5:
+**`<out>/agent_config.yaml`** — keep the retained pairs from Step 5, including roles skipped on resume. Read the existing file; do not depend on shell variables from earlier tool calls. Its YAML structure is:
 ```yaml
 # Agent credentials from the Band.ai platform.
 tom_agent:
@@ -223,6 +315,8 @@ jerry_agent:
   agent_id: "<JERRY_AGENT_ID from Step 5>"
   api_key: "<JERRY_API_KEY from Step 5>"
 ```
+
+**After endpoint recovery**, update both the active process environment and this .env, then restart affected agents.
 
 **`<out>/.env`** — use the REST/WS URLs from Step 1, default to production if absent. The third line depends on the LLM choice:
 - OpenAI → `OPENAI_API_KEY=`
@@ -326,10 +420,12 @@ AskUserQuestion (single-select):
      curl -fsSL "$VERIFY_URL" -o "$VERIFY_FILE" \
        && cd <out> \
        && BAND_USER_API_KEY="<user-api-key-from-step-1>" \
-          VERIFY_AGENT_ID="<TOM_AGENT_ID from Step 5>" VERIFY_AGENT_NAME="Tom" \
+          BAND_REST_URL="<confirmed BAND_REST_URL>" \
+        VERIFY_AGENT_ID="<TOM_AGENT_ID from Step 5>" VERIFY_AGENT_NAME="Tom" \
           uv run python "$VERIFY_FILE"
      ```
-     It creates a throwaway room, sends Tom a uniquely-tokened @mention, and waits up to ~60s for a real reply (cleaning the room up afterwards). Exit 0 means Tom answered — only then report success. Non-zero means STOP: surface the script's stderr to the user instead of declaring success. The agents are connected but cannot answer; for `claude_sdk` that is almost always Claude Code auth — `claude login` missing, or a stray `ANTHROPIC_API_KEY` in the environment overriding a valid login.
+     It creates a throwaway room, sends Tom a uniquely-tokened @mention, and waits up to ~60s for a real reply (cleaning the room up afterwards). Exit 0 means Tom answered — only then report success. Non-zero means investigate the safe failure status: Band 401/403 enters recovery above; provider errors and reply timeouts require process/log evidence before diagnosis. Never declare success without a reply.
+
   6. Tell the user the two bash IDs and how to peek at logs (`BashOutput` with each ID).
 
   **Don't:**
@@ -341,11 +437,11 @@ AskUserQuestion (single-select):
 
 ### Step 10 — Show the user how to trigger the chase
 
-Both agents are running and connected. To see them in action, present these steps to the user (copy the block below verbatim, just substitute the platform URL from `BAND_REST_URL` in their `.env`):
+Both agents are running and connected. To see them in action, present these steps to the user (copy the block below verbatim, substitute the known browser address, falling back to `BAND_REST_URL` without asking a new question):
 
 > **Watch Tom chase Jerry on the platform**
 >
-> 1. Open **<BAND_REST_URL>** in your browser and sign in.
+> 1. Open **<known browser address, otherwise BAND_REST_URL>** in your browser and sign in.
 > 2. In the left sidebar, click **Chats**.
 > 3. Click **Start Your First Chat** — a new session opens.
 > 4. In the **Participants** panel on the right, click the **+** next to the heading.

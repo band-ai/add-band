@@ -95,3 +95,18 @@ After the gateway restarts, the Band connection surfaces in the gateway log (a
 Hermes's `.env` — the skill's `verify_gateway.py` checks both for you. Then open the
 auto-created **"Hermes Agent Hub"** room in Band and **@mention the agent** — Band has
 no DMs, so an un-mentioned message is ignored by design. A reply means you're live.
+
+## Authentication failure recovery
+
+If Band rejects setup with HTTP 401/403, continue with the
+[recovery guide](../ONBOARDING-RECOVERY.md). Successful setup needs no extra
+questions. Ask your setup assistant:
+
+> Investigate my Band setup failure using the add-band recovery guide. Check the
+> destination actually used and ask only for missing context, such as where I
+> normally open Band. Resolve documented connection settings, configure them for
+> me, and resume without repeating completed registrations. Keep keys private.
+
+Start the local setup conversation with `env -u BAND_USER_API_KEY -u BAND_API_KEY -u BAND_AGENT_API_KEY hermes chat -s band:add-band`.
+If no assistant is available, the guide includes a message for your administrator.
+Do not paste a credential into recovery requests.

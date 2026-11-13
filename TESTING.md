@@ -81,3 +81,65 @@ bootstraps take the key out of their own environment before starting any other
 command, but that only clears it inside the script's own shell — if you pre-set the
 key with `export BAND_API_KEY=…` in your shell (or the `export … && curl … | bash`
 one-liner), it still lingers in the parent shell, so `unset BAND_API_KEY` there yourself.
+
+## Authentication recovery exercises
+
+Run deterministic HTTP-boundary checks separately from the normal successful
+onboarding smoke (which deliberately forbids follow-up questions):
+
+```bash
+uv run --with pytest --with pyyaml --with python-dotenv pytest tests/ -q
+# Use an installed band-sdk environment for verifier HTTP-boundary cases:
+../band-sdk-python/.venv/bin/python -m pytest tests/test_onboarding_recovery.py -q
+```
+
+Run the real CLI conversation regression with a locally authenticated CLI (or
+its provider credential in the environment):
+
+```bash
+uv run --no-project --python 3.12 --with pyyaml --with python-dotenv \
+  python scripts/exercise-onboarding-recovery.py --harness codex
+```
+
+Use `--harness claude` or `--harness cursor` for the other coding prompts. Each
+run creates disposable local HTTP deployments and uses a synthetic Band key.
+The first native CLI turn must make one rejected registration and ask for the
+usual Band website. Only then does the driver supply an administrator-confirmed
+company REST/WS pair and resume the same conversation. It checks request counts,
+identities and saved settings independently, then runs a successful first-try
+control. The question gate is a broad text heuristic; retained transcripts allow
+review of the actual wording. This test covers conversation and configuration,
+not real agent startup or WebSocket replies.
+
+The Ubuntu cells of `bootstrap-skill-smoke` run this exercise for every coding
+harness from the catalog and upload `recovery-<harness>` evidence. The existing
+OS matrix still exercises successful hosted onboarding and real agent replies.
+
+For each changed setup prompt (Claude, Codex, Cursor, Hermes, NanoClaw and
+OpenClaw), start a fresh disposable setup conversation using its actual prompt
+and local changed recovery guide. Keep credentials local. At the indicated
+failure boundary, supply controlled HTTP service responses and answer through
+the harness's real free-text interaction. Repeat these cases separately:
+
+| Case | Required observation |
+| --- | --- |
+| Successful cloud / explicit endpoints | No deployment questions; real reply verifies setup. |
+| Cloud destination rejects a company-site key | Asks only missing context; compares actual destination; configures documented endpoints and resumes. |
+| Wrong key or permissions on confirmed site | Checks same-site provenance/permissions without assuming revocation. |
+| Details unavailable | Provides an understandable administrator request; waits for confirmed details. |
+| Tom created, Jerry rejected / response lost | Preserves Tom, reconciles uncertain creation, retries only missing work. |
+| Existing PA account / stale exported URLs | Repairs effective and saved config, including vault/account settings; no duplicate identity. |
+| Provider 401 / ordinary timeout | Investigates process evidence without a deployment questionnaire. |
+
+Use a known browser address distinct from REST and a supported custom socket
+path to check the settings handoff. Also exercise cancellation, 403, a return to
+cloud defaults, and secret-bearing error bodies. Record redacted questions,
+observed request destinations, registration counts, saved settings and final
+reply evidence. A transcript-only exercise proves question behavior, not real
+service acceptance. Static phrase assertions and successful socket connection
+are not acceptance evidence. Never submit customer screenshots or keys.
+
+Follow the failure handoff printed by each real PA bootstrap. For Hermes and
+NanoClaw, launch the recovery assistant with broad credential variables removed;
+OpenClaw's guide provides a pasteable request. Without an assistant, verify that
+the guide/admin next step is actionable and no POST is retried automatically.

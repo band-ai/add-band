@@ -2,6 +2,16 @@
 # Connect this machine's Hermes agent to Band, then hand off setup to the add-band skill.
 set -euo pipefail
 
+registration_failed() {
+  echo "Band registration failed; do not retry until the cause and any existing registration are checked." >&2
+  echo "For HTTP 401/403, the key or Band destination may be wrong. A setup assistant can investigate using:" >&2
+  echo "https://raw.githubusercontent.com/band-ai/add-band/main/ONBOARDING-RECOVERY.md" >&2
+  echo "Tell it the website you normally open to use Band, without including your key." >&2
+  echo "Start recovery with: env -u BAND_USER_API_KEY -u BAND_API_KEY -u BAND_AGENT_API_KEY hermes chat -s band:add-band" >&2
+  echo "Without an assistant, ask your administrator for supported connection details for your Band site." >&2
+  exit 1
+}
+
 # Locate the `hermes` entrypoint. Hosted/managed Hermes runtimes (e.g. Nous
 # Research) install to a fixed prefix like /opt/hermes/bin that a non-login
 # shell's PATH usually doesn't include, so a bare `command -v hermes` fails even
@@ -120,7 +130,7 @@ else
   # BAND_AGENT_API_KEY — never the user key. Its values come from the server
   # unquoted, so they are read as data, never evaluated as shell.
   creds="$(BAND_API_KEY="$band_user_key" bash "$skill_dir/scripts/register-agent.sh")" \
-    || { echo "Band registration failed (see the error above)." >&2; exit 1; }
+    || registration_failed
   BAND_AGENT_ID=$(printf '%s\n' "$creds" | grep '^BAND_AGENT_ID=' | cut -d= -f2- || true)
   BAND_AGENT_API_KEY=$(printf '%s\n' "$creds" | grep '^BAND_AGENT_API_KEY=' | cut -d= -f2- || true)
   unset creds

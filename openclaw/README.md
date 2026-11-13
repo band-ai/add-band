@@ -35,3 +35,17 @@ registers the agent inline (curl) and hands the credentials to the `openclaw` CL
 ## Verify
 
 @mention the agent in a Band room. A reply means the channel is live.
+
+## Authentication failure recovery
+
+If Band rejects setup with HTTP 401/403, continue with the
+[recovery guide](../ONBOARDING-RECOVERY.md). Successful setup needs no extra
+questions. Ask your setup assistant:
+
+> Investigate my Band setup failure using the add-band recovery guide. Check the
+> destination actually used and ask only for missing context, such as where I
+> normally open Band. Resolve documented connection settings, configure them for
+> me, and resume without repeating completed registrations. Keep keys private.
+
+If no assistant is available, the guide includes a message for your administrator.
+Do not paste a credential into recovery requests.

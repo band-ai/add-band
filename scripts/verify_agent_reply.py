@@ -20,12 +20,14 @@ Environment:
 Exit code 0: the agent replied. Anything else: it did not — do not tell the
 user their setup works.
 """
+
 from __future__ import annotations
 
 import os
 import sys
 import time
 import uuid
+from urllib.parse import urlsplit
 
 import httpx
 from band.client.rest import (
@@ -34,6 +36,8 @@ from band.client.rest import (
     RestClient,
 )
 from band_rest import ParticipantRequest
+from band_rest.core import ParsingError
+from band_rest.core.api_error import ApiError
 from band_rest.human_api_chats import CreateMyChatRoomRequestChat
 from dotenv import find_dotenv, load_dotenv
 
@@ -49,6 +53,8 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 POLL_INTERVAL_SECONDS = 2.0
+# A write can commit before an error response arrives.
+NO_RETRY_REQUEST_OPTIONS = {"max_retries": 0}
 
 
 def _require_env(name: str) -> str:
@@ -71,15 +77,15 @@ def _delete_room(client: RestClient, room_id: str) -> None:
                 f"(HTTP {response.status_code}) — delete it manually",
                 file=sys.stderr,
             )
-    except httpx.HTTPError as e:
+    except httpx.HTTPError:
         print(
-            f"verify: could not delete check room {room_id} ({e}) — "
+            f"verify: could not delete check room {room_id} (network error) — "
             "delete it manually",
             file=sys.stderr,
         )
 
 
-def main() -> int:
+def verify() -> int:
     api_key = _require_env("BAND_USER_API_KEY")
     agent_id = _require_env("VERIFY_AGENT_ID")
     agent_name = _require_env("VERIFY_AGENT_NAME")
@@ -90,23 +96,25 @@ def main() -> int:
     client = RestClient(api_key=api_key, base_url=base_url)
 
     room = client.human_api_chats.create_my_chat_room(
-        chat=CreateMyChatRoomRequestChat(title="Band onboarding check")
+        chat=CreateMyChatRoomRequestChat(title="Band onboarding check"),
+        request_options=NO_RETRY_REQUEST_OPTIONS,
     )
     room_id = room.data.id
     try:
         client.human_api_participants.add_my_chat_participant(
-            room_id, participant=ParticipantRequest(participant_id=agent_id)
+            room_id,
+            participant=ParticipantRequest(participant_id=agent_id),
+            request_options=NO_RETRY_REQUEST_OPTIONS,
         )
         client.human_api_messages.send_my_chat_message(
             room_id,
+            request_options=NO_RETRY_REQUEST_OPTIONS,
             message=ChatMessageRequest(
                 content=(
                     f"@{agent_name} connectivity check — please reply and "
                     f"include the token {token} in your reply."
                 ),
-                mentions=[
-                    ChatMessageRequestMentionsItem(id=agent_id, name=agent_name)
-                ],
+                mentions=[ChatMessageRequestMentionsItem(id=agent_id, name=agent_name)],
             ),
         )
 
@@ -125,29 +133,56 @@ def main() -> int:
             # reply must not shadow it).
             for message in messages:
                 if message.message_type == "text" and token in message.content:
-                    print(f"verify: {agent_name} replied: {message.content}")
+                    print(f"verify: {agent_name} replied with the check token.")
                     return 0
             for message in messages:
                 if message.message_type == "error":
                     print(
                         f"verify: {agent_name} reported an error instead of "
-                        f"replying:\n  {message.content}",
+                        "replying. Inspect the agent locally to identify whether Band, "
+                        "the model provider, or another operation failed; do not share raw credentials or logs.",
                         file=sys.stderr,
                     )
                     return 1
 
         print(
             f"verify: {agent_name} did not reply within {timeout:.0f}s. "
-            "The agent process is connected but cannot answer messages. "
-            "Most likely its LLM credentials are broken — for the Claude "
-            "Agent SDK, check `claude login` / ANTHROPIC_API_KEY, and check "
-            "for a stray ANTHROPIC_API_KEY in your shell environment that "
-            "silently overrides a valid `claude login`.",
+            "Check the running process and its connection settings, then investigate "
+            "the operation that failed. A timeout alone does not identify an "
+            "authentication or deployment problem.",
             file=sys.stderr,
         )
         return 1
     finally:
         _delete_room(client, room_id)
+
+
+def main() -> int:
+    try:
+        return verify()
+    except (ApiError, ParsingError) as error:
+        status = error.status_code
+        destination = urlsplit(
+            os.environ.get("BAND_REST_URL", "https://app.band.ai")
+        ).hostname
+        print(
+            f"verify: Band request to {destination} failed (HTTP {status}).",
+            file=sys.stderr,
+        )
+        if status in (401, 403):
+            print(
+                "verify: investigate both the credentials and destination using "
+                "ONBOARDING-RECOVERY.md before retrying. Reuse the user's known "
+                "Band website, or ask where they normally open Band.",
+                file=sys.stderr,
+            )
+        return 1
+    except httpx.HTTPError:
+        print(
+            "verify: Band request failed with a network error; inspect the connection locally.",
+            file=sys.stderr,
+        )
+        return 1
 
 
 if __name__ == "__main__":
