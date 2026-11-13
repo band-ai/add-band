@@ -142,10 +142,11 @@ export BAND_BASE_URL="<BAND_REST_URL from Step 1>"  # register-agent.sh targets 
 # Save each completed registration before attempting another. JSON is valid YAML.
 # Step 4 must have approved this output directory; never overwrite user files.
 mkdir -p "<out>"
+printf '%s\n' .env agent_config.yaml .venv/ __pycache__/ > "<out>/.gitignore"
 save_agent() {
   AGENT_ROLE="$1" BAND_AGENT_ID="$2" BAND_AGENT_API_KEY="$3" \
     BAND_REST_URL="$BAND_BASE_URL" uv run --no-project --python 3.12 python - <<'PYTHON'
-import json, os
+import json, os, tempfile
 from pathlib import Path
 path = Path("<out>/agent_config.yaml")
 state = json.loads(path.read_text()) if path.exists() else {}
@@ -153,9 +154,10 @@ state[os.environ["AGENT_ROLE"]] = {
     "agent_id": os.environ["BAND_AGENT_ID"],
     "api_key": os.environ["BAND_AGENT_API_KEY"],
 }
-path.touch(mode=0o600, exist_ok=True)
-path.chmod(0o600)
-path.write_text(json.dumps(state, indent=2) + "\n")
+with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as pending:
+    json.dump(state, pending, indent=2)
+    pending.write("\n")
+os.replace(pending.name, path)
 # Record only the destination, never the broad user key.
 Path("<out>/.env").write_text("BAND_REST_URL=" + os.environ["BAND_REST_URL"] + "\n")
 PYTHON
