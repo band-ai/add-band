@@ -53,3 +53,18 @@ After the skill finishes the NanoClaw-side setup and room wiring, @mention the
 agent in the wired Band room. A reply means the channel is live. If messages land
 in Band but the agent stays silent, the room is discovered but not wired — see the
 skill's Troubleshooting and run `/manage-channels`.
+
+## Authentication failure recovery
+
+If Band rejects setup with HTTP 401/403, continue with the
+[recovery guide](../ONBOARDING-RECOVERY.md). Successful setup needs no extra
+questions. Ask your setup assistant:
+
+> Investigate my Band setup failure using the add-band recovery guide. Check the
+> destination actually used and ask only for missing context, such as where I
+> normally open Band. Resolve documented connection settings, configure them for
+> me, and resume without repeating completed registrations. Keep keys private.
+
+From the NanoClaw checkout, use `env -u BAND_USER_API_KEY -u BAND_API_KEY -u BAND_AGENT_API_KEY claude /add-band` when available.
+If no assistant is available, the guide includes a message for your administrator.
+Do not paste a credential into recovery requests.

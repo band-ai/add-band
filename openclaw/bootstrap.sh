@@ -19,6 +19,15 @@
 #            BAND_AGENT_DESCRIPTION (set either to skip its prompt).
 set -euo pipefail
 
+registration_failed() {
+  echo "Band registration failed; do not retry until the cause and any existing registration are checked." >&2
+  echo "For HTTP 401/403, the key or Band destination may be wrong. A setup assistant can investigate using:" >&2
+  echo "https://raw.githubusercontent.com/band-ai/add-band/main/ONBOARDING-RECOVERY.md" >&2
+  echo "Tell it the website you normally open to use Band, without including your key." >&2
+  echo "Without an assistant, ask your administrator for supported connection details for your Band site." >&2
+  exit 1
+}
+
 default_base_url=https://app.band.ai
 
 # Agent names are unique per account, so a fixed default fails with HTTP 422
@@ -202,7 +211,7 @@ unset band_user_key
 code=${resp##*$'\n'}; out=${resp%$'\n'*}
 case "$code" in
   200 | 201) ;;
-  *) echo "agent registration failed (HTTP ${code:-?}): $(printf '%.300s' "$out")" >&2; exit 1 ;;
+  *) echo "agent registration failed (HTTP ${code:-?})" >&2; registration_failed ;;
 esac
 
 case "$json_parser" in

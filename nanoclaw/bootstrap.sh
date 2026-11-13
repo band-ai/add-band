@@ -18,6 +18,16 @@
 #     which reads the raw key directly — it isn't behind the OneCLI egress proxy.
 set -euo pipefail
 
+registration_failed() {
+  echo "Band registration failed; do not retry until the cause and any existing registration are checked." >&2
+  echo "For HTTP 401/403, the key or Band destination may be wrong. A setup assistant can investigate using:" >&2
+  echo "https://raw.githubusercontent.com/band-ai/add-band/main/ONBOARDING-RECOVERY.md" >&2
+  echo "Tell it the website you normally open to use Band, without including your key." >&2
+  echo "From your NanoClaw checkout, start recovery with: env -u BAND_USER_API_KEY -u BAND_API_KEY -u BAND_AGENT_API_KEY claude /add-band" >&2
+  echo "Without an assistant, ask your administrator for supported connection details for your Band site." >&2
+  exit 1
+}
+
 FORK_REMOTE=band-ai
 FORK_URL="${NANOCLAW_REPO:-https://github.com/band-ai/nanoclaw-band}"
 SKILL_DIR=.claude/skills/add-band
@@ -141,7 +151,7 @@ if ! band_ready; then
   umask 077
   creds=$(mktemp)
   trap 'rm -f "${creds:-}" 2>/dev/null' EXIT
-  BAND_API_KEY="$band_user_key" "$SKILL_DIR/scripts/register-agent.sh" > "$creds"
+  BAND_API_KEY="$band_user_key" "$SKILL_DIR/scripts/register-agent.sh" > "$creds" || registration_failed
   AGENT_ID=$(grep '^BAND_AGENT_ID=' "$creds" | cut -d= -f2- || true)
   AGENT_KEY=$(grep -E '^BAND(_AGENT)?_API_KEY=' "$creds" | head -1 | cut -d= -f2- || true)
   rm -f "$creds"; trap - EXIT
