@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET = "credential-must-not-appear"
@@ -300,6 +301,18 @@ def test_prompt_provisioning_retains_tom_before_jerry_auth_failure(
             },
         ),
     ]
+    result, output = run_prompt_provisioning(tmp_path, harness, url)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert yaml.safe_load((output / "agent_config.yaml").read_text()) == {
+        "tom_agent": {"agent_id": "tom-id", "api_key": "tom-key"},
+    }
+    assert f"BAND_REST_URL='{url}'" in (output / ".env").read_text()
+    assert server.requests == [("/api/v1/me/agents/register", SECRET)] * 2
+    assert SECRET not in result.stdout + result.stderr
+    assert all(SECRET not in path.read_text() for path in output.iterdir())
+
+
+def run_prompt_provisioning(tmp_path, harness, url):
     prompt = (ROOT / harness / "bootstrap-prompt.md").read_text()
     block = next(
         block
@@ -342,11 +355,73 @@ os.execv({sys.executable!r}, [{sys.executable!r}, *sys.argv[sys.argv.index('pyth
         text=True,
         timeout=20,
     )
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert json.loads((output / "agent_config.yaml").read_text()) == {
-        "tom_agent": {"agent_id": "tom-id", "api_key": "tom-key"},
+    return result, output
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex", "cursor"])
+def test_prompt_resumes_yaml_state_without_discarding_settings(peer, tmp_path, harness):
+    server, url = peer
+    output = tmp_path / "agents"
+    output.mkdir()
+    tom = {"agent_id": "tom-id", "api_key": "tom-key"}
+    (output / "agent_config.yaml").write_text(yaml.safe_dump({"tom_agent": tom}))
+    (output / ".env").write_text(
+        f"BAND_REST_URL={url}\nBAND_WS_URL=wss://confirmed.example/custom\n"
+        "OPENAI_API_KEY=local-provider-key\n# user setting\nOTHER=value\n"
+    )
+    (output / ".gitignore").write_text("user-private/\n")
+    server.responses = [(201, {"data": {
+        "agent": {"id": "jerry-id"}, "credentials": {"api_key": "jerry-key"},
+    }})]
+    result, _ = run_prompt_provisioning(tmp_path, harness, url)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert server.requests == [("/api/v1/me/agents/register", SECRET)]
+    assert yaml.safe_load((output / "agent_config.yaml").read_text()) == {
+        "tom_agent": tom,
+        "jerry_agent": {"agent_id": "jerry-id", "api_key": "jerry-key"},
     }
-    assert (output / ".env").read_text() == f"BAND_REST_URL={url}\n"
-    assert server.requests == [("/api/v1/me/agents/register", SECRET)] * 2
+    saved_env = (output / ".env").read_text()
+    assert "BAND_WS_URL=wss://confirmed.example/custom\n" in saved_env
+    assert "OPENAI_API_KEY=local-provider-key\n" in saved_env
+    assert "# user setting\nOTHER=value\n" in saved_env
+    assert "user-private/\n" in (output / ".gitignore").read_text()
     assert SECRET not in result.stdout + result.stderr
-    assert all(SECRET not in path.read_text() for path in output.iterdir())
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex", "cursor"])
+@pytest.mark.parametrize("retained_url", ["https://old-deployment.example", None])
+def test_prompt_rejects_other_or_unknown_destination_before_post(
+    peer, tmp_path, harness, retained_url
+):
+    server, url = peer
+    output = tmp_path / "agents"
+    output.mkdir()
+    (output / "agent_config.yaml").write_text(yaml.safe_dump({
+        "tom_agent": {"agent_id": "old-tom-id", "api_key": "old-tom-key"},
+    }))
+    (output / ".env").write_text(
+        f"BAND_REST_URL={retained_url}\n" if retained_url else "OTHER=value\n"
+    )
+    original = {path.name: path.read_bytes() for path in output.iterdir()}
+    result, _ = run_prompt_provisioning(tmp_path, harness, url)
+    assert result.returncode != 0
+    assert "separate output directory" in result.stderr
+    assert server.requests == []
+    assert {path.name: path.read_bytes() for path in output.iterdir()} == original
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex", "cursor"])
+def test_prompt_rejects_malformed_yaml_without_disclosing_it(peer, tmp_path, harness):
+    server, url = peer
+    output = tmp_path / "agents"
+    output.mkdir()
+    config = output / "agent_config.yaml"
+    config.write_text("tom_agent: [\n  " + SECRET + "\n")
+    original = config.read_bytes()
+    result, _ = run_prompt_provisioning(tmp_path, harness, url)
+    assert result.returncode != 0
+    assert "Retained agent configuration is invalid" in result.stderr
+    assert SECRET not in result.stdout + result.stderr
+    assert "Traceback" not in result.stderr
+    assert server.requests == []
+    assert config.read_bytes() == original

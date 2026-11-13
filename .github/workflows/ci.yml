@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - run: pip install pytest
+      - run: pip install pytest pyyaml python-dotenv band-sdk
 
       # Structural validation + completeness (every folder participates or is a stub).
       - name: Validate catalog

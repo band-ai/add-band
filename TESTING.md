@@ -88,7 +88,7 @@ Run deterministic HTTP-boundary checks separately from the normal successful
 onboarding smoke (which deliberately forbids follow-up questions):
 
 ```bash
-uv run --with pytest --with pyyaml pytest tests/ -q
+uv run --with pytest --with pyyaml --with python-dotenv pytest tests/ -q
 # Use an installed band-sdk environment for verifier HTTP-boundary cases:
 ../band-sdk-python/.venv/bin/python -m pytest tests/test_onboarding_recovery.py -q
 ```
