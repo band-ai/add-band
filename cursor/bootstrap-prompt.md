@@ -234,7 +234,9 @@ unset BAND_USER_API_KEY BAND_BASE_URL BAND_AGENT_NAME BAND_AGENT_DESCRIPTION BAN
 ```
 
 **Check each registration before continuing.** Run Tom and Jerry as separate
-foreground attempts; stop dependent commands if either fails. For Band 401/403,
+foreground attempts, never in parallel. After the first Band 401/403, stop all
+registrations using that key and destination, including the other agent. Do not
+try Jerry to confirm a rejection already received for Tom. For Band 401/403,
 enter authentication recovery above instead of declaring the key invalid.
 Preserve any successful pair and its destination; after repair register only the
 missing agent. Never repeat the whole block blindly. For uncertain POST outcomes

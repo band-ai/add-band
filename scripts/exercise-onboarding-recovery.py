@@ -130,40 +130,36 @@ def invoke(harness, cwd, env, prompt, session, turn, timeout):
             prompt,
         ]
     elif harness == "cursor":
-        if turn == 1:
-            created = subprocess.run(
-                ["agent", "create-chat"],
-                cwd=cwd,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=True,
-            )
-            session = created.stdout.strip()
-        command = [
-            "agent",
-            "-p",
-            "--force",
-            "--output-format",
-            "text",
-            "--resume",
-            session,
-        ]
+        # Print mode creates the session; its JSON result supplies the resume ID.
+        command = ["agent", "-p", "--force", "--output-format", "json"]
+        if turn > 1:
+            command += ["--resume", session]
         if env.get("CURSOR_MODEL"):
             command += ["--model", env["CURSOR_MODEL"]]
         command += [prompt]
     else:
         raise ValueError(f"No CLI driver for catalog harness {harness}")
-    completed = subprocess.run(
-        command,
-        cwd=cwd,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        partial = "".join(
+            value.decode("utf-8", "replace")
+            if isinstance(value, bytes)
+            else value or ""
+            for value in (exc.stdout, exc.stderr)
+        )
+        (cwd / f"cli-{turn}.log").write_text(redact(partial, sensitive_values(env)))
+        raise AssertionError(
+            f"{harness} turn {turn} timed out after {timeout}s; see cli-{turn}.log"
+        ) from None
     raw = completed.stdout + completed.stderr
     secrets = sensitive_values(env)
     (cwd / f"cli-{turn}.log").write_text(redact(raw, secrets))
@@ -188,11 +184,27 @@ def invoke(harness, cwd, env, prompt, session, turn, timeout):
         if turn > 1:
             assert threads[0] == session, "Codex resumed a different conversation"
         session = threads[0]
-    answer = (
-        (cwd / f"answer-{turn}.txt").read_text()
-        if harness == "codex"
-        else completed.stdout
-    )
+    if harness == "cursor":
+        result = json.loads(completed.stdout)
+        assert result.get("type") == "result" and result.get("is_error") is False, (
+            "Cursor did not complete successfully"
+        )
+        returned_session = result.get("session_id")
+        assert isinstance(returned_session, str) and returned_session, (
+            "Missing Cursor session ID"
+        )
+        if turn > 1:
+            assert returned_session == session, (
+                "Cursor resumed a different conversation"
+            )
+        session = returned_session
+        answer = result["result"]
+    else:
+        answer = (
+            (cwd / f"answer-{turn}.txt").read_text()
+            if harness == "codex"
+            else completed.stdout
+        )
     (cwd / f"answer-{turn}.txt").write_text(redact(answer, secrets))
     return answer, session
 

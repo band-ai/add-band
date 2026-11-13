@@ -6,7 +6,9 @@ STOP-on-error instructions for Band HTTP 401/403 responses.
 
 ## Investigate before retrying
 
-Pause dependent setup steps. Identify the operation and actual destination from
+Pause dependent setup steps and all registrations sharing the rejected key and
+destination. Run registrations sequentially; do not try another agent to confirm
+an authentication rejection. Identify the operation and actual destination from
 configuration and safe status diagnostics. A Band 401/403 can mean incorrect
 credentials, insufficient permissions, or a request sent to another deployment.
 Do not infer revocation or a company deployment from the error alone. Provider
