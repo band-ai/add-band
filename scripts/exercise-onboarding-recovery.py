@@ -33,7 +33,7 @@ SITE_QUESTION = re.compile(
 
 
 @contextmanager
-def registration_peer(status):
+def registration_peer(status, evidence_path):
     requests = []
     identities = {}
 
@@ -50,6 +50,7 @@ def registration_peer(status):
                     "correct_key": self.headers.get("X-API-Key") == USER_KEY,
                 }
             )
+            evidence_path.write_text(json.dumps(requests, indent=2))
             code = status if requests[-1]["correct_key"] else 401
             if code == 201:
                 identity = {
@@ -131,7 +132,7 @@ def invoke(harness, cwd, env, prompt, session, turn, timeout):
         ]
     elif harness == "cursor":
         # Print mode creates the session; its JSON result supplies the resume ID.
-        command = ["agent", "-p", "--force", "--output-format", "json"]
+        command = ["agent", "-p", "--force", "--output-format", "stream-json"]
         if turn > 1:
             command += ["--resume", session]
         if env.get("CURSOR_MODEL"):
@@ -185,7 +186,14 @@ def invoke(harness, cwd, env, prompt, session, turn, timeout):
             assert threads[0] == session, "Codex resumed a different conversation"
         session = threads[0]
     if harness == "cursor":
-        result = json.loads(completed.stdout)
+        results = [
+            json.loads(line)
+            for line in completed.stdout.splitlines()
+            if line.startswith("{")
+        ]
+        result = next(
+            event for event in reversed(results) if event.get("type") == "result"
+        )
         assert result.get("type") == "result" and result.get("is_error") is False, (
             "Cursor did not complete successfully"
         )
@@ -251,7 +259,10 @@ def exercise(harness, output, recovery, timeout):
         "ONBOARDING-RECOVERY.md",
     ):
         shutil.copy2(ROOT / source, cwd / source)
-    with registration_peer(401) as cloud, registration_peer(201) as company:
+    with (
+        registration_peer(401, cwd / "cloud-requests.json") as cloud,
+        registration_peer(201, cwd / "company-requests.json") as company,
+    ):
         cloud_url, cloud_requests, _ = cloud
         company_url, company_requests, identities = company
         base = cloud_url if recovery else company_url
