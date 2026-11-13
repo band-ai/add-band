@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import threading
+from contextlib import ExitStack, contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -27,12 +28,13 @@ ERROR_BODIES = [
 ]
 
 
-@pytest.fixture
-def peer():
+@contextmanager
+def http_peer():
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
             self.server.requests.append((self.path, self.headers.get("X-API-Key")))
+            self.server.request_bodies.append(json.loads(body))
             if self.server.responses:
                 status, response = self.server.responses.pop(0)
                 self.respond(status, response)
@@ -115,6 +117,7 @@ def peer():
     server.status = 401
     server.body = ERROR_BODIES[0]
     server.requests = []
+    server.request_bodies = []
     server.responses = []
     server.lifecycle = False
     server.message_type = "text"
@@ -127,6 +130,17 @@ def peer():
         server.shutdown()
         thread.join()
         server.server_close()
+
+
+@pytest.fixture
+def peer_factory():
+    with ExitStack() as peers:
+        yield lambda: peers.enter_context(http_peer())
+
+
+@pytest.fixture
+def peer(peer_factory):
+    return peer_factory()
 
 
 def run_helper(path, env, cwd, executable):
@@ -326,7 +340,7 @@ def run_prompt_provisioning(tmp_path, harness, url):
         .replace("<BAND_REST_URL from Step 1>", url)
     )
     bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    bin_dir.mkdir(exist_ok=True)
     curl = bin_dir / "curl"
     curl.write_text(f"""#!{sys.executable}
 import os, shutil, sys
@@ -370,9 +384,17 @@ def test_prompt_resumes_yaml_state_without_discarding_settings(peer, tmp_path, h
         "OPENAI_API_KEY=local-provider-key\n# user setting\nOTHER=value\n"
     )
     (output / ".gitignore").write_text("user-private/\n")
-    server.responses = [(201, {"data": {
-        "agent": {"id": "jerry-id"}, "credentials": {"api_key": "jerry-key"},
-    }})]
+    server.responses = [
+        (
+            201,
+            {
+                "data": {
+                    "agent": {"id": "jerry-id"},
+                    "credentials": {"api_key": "jerry-key"},
+                }
+            },
+        )
+    ]
     result, _ = run_prompt_provisioning(tmp_path, harness, url)
     assert result.returncode == 0, result.stdout + result.stderr
     assert server.requests == [("/api/v1/me/agents/register", SECRET)]
@@ -396,9 +418,13 @@ def test_prompt_rejects_other_or_unknown_destination_before_post(
     server, url = peer
     output = tmp_path / "agents"
     output.mkdir()
-    (output / "agent_config.yaml").write_text(yaml.safe_dump({
-        "tom_agent": {"agent_id": "old-tom-id", "api_key": "old-tom-key"},
-    }))
+    (output / "agent_config.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "tom_agent": {"agent_id": "old-tom-id", "api_key": "old-tom-key"},
+            }
+        )
+    )
     (output / ".env").write_text(
         f"BAND_REST_URL={retained_url}\n" if retained_url else "OTHER=value\n"
     )
@@ -425,3 +451,85 @@ def test_prompt_rejects_malformed_yaml_without_disclosing_it(peer, tmp_path, har
     assert "Traceback" not in result.stderr
     assert server.requests == []
     assert config.read_bytes() == original
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex", "cursor"])
+@pytest.mark.parametrize("status", [401, 403])
+def test_prompt_recovers_company_key_sent_to_cloud(
+    peer_factory, tmp_path, harness, status
+):
+    cloud, cloud_url = peer_factory()
+    company, company_url = peer_factory()
+    cloud.status = status
+    company.responses = [
+        (
+            201,
+            {
+                "data": {
+                    "agent": {"id": f"company-{role}-id"},
+                    "credentials": {"api_key": f"company-{role}-key"},
+                }
+            },
+        )
+        for role in ("tom", "jerry")
+    ]
+
+    rejected, output = run_prompt_provisioning(tmp_path, harness, cloud_url)
+    assert rejected.returncode == 1
+    assert f"HTTP {status}" in rejected.stderr
+    assert "ONBOARDING-RECOVERY.md" in rejected.stderr
+    assert cloud.requests == [("/api/v1/me/agents/register", SECRET)]
+    assert company.requests == []
+    assert not (output / "agent_config.yaml").exists()
+
+    # The conversation establishes the company endpoint before this explicit resume.
+    recovered, _ = run_prompt_provisioning(tmp_path, harness, company_url)
+    assert recovered.returncode == 0, recovered.stdout + recovered.stderr
+    assert cloud.requests == [("/api/v1/me/agents/register", SECRET)]
+    assert company.requests == [("/api/v1/me/agents/register", SECRET)] * 2
+    assert [body["agent"]["name"] for body in company.request_bodies] == [
+        "Tom",
+        "Jerry",
+    ]
+    assert yaml.safe_load((output / "agent_config.yaml").read_text()) == {
+        f"{role}_agent": {
+            "agent_id": f"company-{role}-id",
+            "api_key": f"company-{role}-key",
+        }
+        for role in ("tom", "jerry")
+    }
+    assert (output / ".env").read_text() == f"BAND_REST_URL='{company_url}'\n"
+    assert {".env", "agent_config.yaml"} <= set(
+        (output / ".gitignore").read_text().splitlines()
+    )
+    diagnostics = (
+        rejected.stdout + rejected.stderr + recovered.stdout + recovered.stderr
+    )
+    assert all(
+        key not in diagnostics
+        for key in (SECRET, "company-tom-key", "company-jerry-key")
+    )
+    assert all(SECRET not in path.read_text() for path in output.iterdir())
+    if os.name != "nt":
+        assert (output / "agent_config.yaml").stat().st_mode & 0o077 == 0
+
+
+@pytest.mark.parametrize("harness", ["claude", "codex", "cursor"])
+@pytest.mark.parametrize("status", [401, 403])
+def test_prompt_wrong_key_on_confirmed_site_stops_without_retry(
+    peer, tmp_path, harness, status
+):
+    company, company_url = peer
+    company.status = status
+    output = tmp_path / "agents"
+    output.mkdir()
+    (output / ".env").write_text(f"BAND_REST_URL={company_url}\n")
+
+    result, _ = run_prompt_provisioning(tmp_path, harness, company_url)
+    assert result.returncode == 1
+    assert f"HTTP {status}" in result.stderr
+    assert "key or destination may be incorrect" in result.stderr
+    assert company.requests == [("/api/v1/me/agents/register", SECRET)]
+    assert not (output / "agent_config.yaml").exists()
+    assert SECRET not in result.stdout + result.stderr
+    assert all(SECRET not in path.read_text() for path in output.iterdir())

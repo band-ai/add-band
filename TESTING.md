@@ -93,6 +93,28 @@ uv run --with pytest --with pyyaml --with python-dotenv pytest tests/ -q
 ../band-sdk-python/.venv/bin/python -m pytest tests/test_onboarding_recovery.py -q
 ```
 
+Run the real CLI conversation regression with a locally authenticated CLI (or
+its provider credential in the environment):
+
+```bash
+uv run --no-project --python 3.12 --with pyyaml --with python-dotenv \
+  python scripts/exercise-onboarding-recovery.py --harness codex
+```
+
+Use `--harness claude` or `--harness cursor` for the other coding prompts. Each
+run creates disposable local HTTP deployments and uses a synthetic Band key.
+The first native CLI turn must make one rejected registration and ask for the
+usual Band website. Only then does the driver supply an administrator-confirmed
+company REST/WS pair and resume the same conversation. It checks request counts,
+identities and saved settings independently, then runs a successful first-try
+control. The question gate is a broad text heuristic; retained transcripts allow
+review of the actual wording. This test covers conversation and configuration,
+not real agent startup or WebSocket replies.
+
+The Ubuntu cells of `bootstrap-skill-smoke` run this exercise for every coding
+harness from the catalog and upload `recovery-<harness>` evidence. The existing
+OS matrix still exercises successful hosted onboarding and real agent replies.
+
 For each changed setup prompt (Claude, Codex, Cursor, Hermes, NanoClaw and
 OpenClaw), start a fresh disposable setup conversation using its actual prompt
 and local changed recovery guide. Keep credentials local. At the indicated

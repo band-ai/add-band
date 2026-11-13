@@ -18,6 +18,9 @@ on:
       - "*/bootstrap-prompt.md"
       - scripts/register-agent.sh
       - scripts/verify_agent_reply.py
+      - scripts/exercise-onboarding-recovery.py
+      - ONBOARDING-RECOVERY.md
+      - tests/test_onboarding_recovery.py
       - .github/workflows/bootstrap-skill-smoke.yml
       - .github/workflows/scripts/reap-tom-jerry.sh
   workflow_dispatch:
@@ -151,6 +154,28 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Exercise authentication recovery conversation
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.E2E_ANTHROPIC_API_KEY }}
+          CODEX_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.E2E_OPENAI_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.E2E_CURSOR_API_KEY }}
+          CURSOR_MODEL: composer-2.5
+        run: |
+          uv run --no-project --python 3.12 --with pyyaml --with python-dotenv \
+            python scripts/exercise-onboarding-recovery.py \
+            --harness "${{ matrix.skill }}" \
+            --output-dir "$RUNNER_TEMP/onboarding-recovery"
+
+      - name: Upload recovery conversation evidence
+        if: always() && matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-${{ matrix.skill }}
+          path: ${{ runner.temp }}/onboarding-recovery
+          if-no-files-found: ignore
 
       # Every heredoc here writes straight to a file rather than through
       # $(cat <<'EOF' ... EOF) into a variable: macOS's system bash (3.2)
